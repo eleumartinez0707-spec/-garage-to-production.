@@ -150,6 +150,20 @@ table th, table td{ text-align:left; padding:.35em .4em; border-bottom:1px solid
 .op-badge{ display:inline-block; padding:.25em .7em; background:var(--panel2); border-radius:999px; border:1px solid var(--border); }
 .warning-list{ list-style:none; margin:.4em 0; padding:0; }
 .warning-list li{ background:rgba(255,92,92,.12); border:1px solid var(--bad); color:#ffb3b3; padding:.35em .6em; border-radius:6px; margin-bottom:.3em; font-size:.85rem;}
+
+/* ---------- MINIGAME SHELL ---------- */
+.minigame{ background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); padding:.8em; margin-top:.5em; }
+.minigame-instruction{ font-weight:700; margin:0 0 .5em; font-size:1rem; }
+.minigame-stage{ width:100%; touch-action:none; user-select:none; -webkit-user-select:none; border-radius:8px; background:#0d1116; border:1px solid var(--border); display:block; }
+.minigame-stage.dragging{ cursor:grabbing; }
+.minigame-drag-target{ cursor:grab; }
+.minigame-controls{ display:flex; gap:.5em; flex-wrap:wrap; margin-top:.6em; align-items:center; }
+.minigame-controls button{ font-size:.85rem; padding:.5em .8em; min-height:38px; }
+.minigame-result{ margin-top:.6em; font-size:.85rem; }
+.minigame-result .pill{ margin-right:.4em; }
+.minigame-hint-box{ background:rgba(63,182,255,.1); border:1px solid var(--accent2); border-radius:6px; padding:.5em .7em; font-size:.82rem; margin-top:.5em; color:#bfe8ff; }
+.snap-zone{ opacity:.35; }
+.snap-zone.active{ opacity:.85; }
 .event-modal .bolt-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:.6em; margin:1em 0; }
 .bolt-btn{ aspect-ratio:1/1; font-size:1.4rem; background:var(--bg2); }
 .bolt-btn.done{ background:var(--good); color:#003; }
@@ -1283,6 +1297,7 @@ function renderMfgModalContent(){
   var body = mfgTabBodyHtml(tmpl, key, stageKey);
   host.innerHTML = '<div class="modal-header"><h2>' + tmpl.part + '</h2><button class="close-x" data-action="close-modal" aria-label="Close">&times;</button></div>' +
     tabsHtml + '<div id="mfg-tab-body">' + body + '</div>';
+  mfgWireStockPlacementDrag();
 }
 
 function mfgUpdateLiveProgress(){
@@ -1346,6 +1361,223 @@ function mfgBlueprintTabHtml(tmpl, key){
     (canAdvance ? '<button type="button" class="primary" style="width:100%; margin-top:.8em;" data-action="mfg-advance" data-key="' + key + '" data-to="plan">Review Complete &mdash; Plan the Process</button>' : '');
 }
 
+/* ============================================================
+   MINIGAME: STOCK PLACEMENT
+   Drag the finished-part outline inside the raw stock rectangle.
+   Vertical position controls how much material is left below the
+   part for the Setup-1 vise to grip; horizontal position mostly
+   affects side waste. Uses Pointer Events with pointer capture so
+   it works uniformly for mouse, touch, and pen.
+   ============================================================ */
+
+function mfgStockMargins(tmpl, stockOpt){
+  var f = tmpl.finished;
+  return {
+    marginXmax: Math.max(0.001, stockOpt.length - f.length),
+    marginYmax: Math.max(0.001, stockOpt.thickness - f.thickness)
+  };
+}
+
+function mfgDefaultStockPlacement(tmpl, stockOpt){
+  var m = mfgStockMargins(tmpl, stockOpt);
+  return { dx: m.marginXmax*0.5, dy: m.marginYmax*0.55 };
+}
+
+function mfgTrapezoidScore(x, loFloor, loRamp, hiRamp, hiFloor){
+  if(x <= loFloor || x >= hiFloor) return 0.2;
+  if(x < loRamp) return 0.2 + 0.8*(x-loFloor)/(loRamp-loFloor);
+  if(x > hiRamp) return 0.2 + 0.8*(hiFloor-x)/(hiFloor-hiRamp);
+  return 1.0;
+}
+
+function polygonArea(pts){
+  var a = 0;
+  for(var i=0;i<pts.length;i++){
+    var p1 = pts[i], p2 = pts[(i+1)%pts.length];
+    a += p1[0]*p2[1] - p2[0]*p1[1];
+  }
+  return Math.abs(a)/2;
+}
+
+function mfgScoreStockPlacement(tmpl, stockOpt, dx, dy){
+  var m = mfgStockMargins(tmpl, stockOpt);
+  var gripFraction = clamp(dy / m.marginYmax, 0, 1);
+  var centerFraction = clamp(dx / m.marginXmax, 0, 1);
+  var availableGrip = mfgTrapezoidScore(gripFraction, 0.12, 0.35, 0.75, 0.95);
+  var finishedArea = polygonArea(mfgFinishedProfile(tmpl));
+  var stockArea = stockOpt.length * stockOpt.thickness;
+  var materialEfficiency = clamp(finishedArea / stockArea, 0, 1);
+  var centeredness = 1 - Math.abs(centerFraction - 0.5)*2;
+  var stockPlacementScore = clamp(0.55*availableGrip + 0.3*materialEfficiency + 0.15*centeredness, 0, 1);
+  return {
+    stockPlacementScore: stockPlacementScore,
+    materialEfficiency: materialEfficiency,
+    availableGrip: availableGrip,
+    op2HoldingQuality: availableGrip,
+    gripFraction: gripFraction
+  };
+}
+
+function mfgStockPlacementFeedback(scores){
+  var lines = [];
+  lines.push(scores.availableGrip >= 0.75 ? { cls:'good', text:'Solid grip material for the Setup 1 vise.' } :
+    scores.availableGrip >= 0.45 ? { cls:'warn', text:'Workable grip, but not much margin for error.' } :
+    { cls:'bad', text:'Too little material left for the vise to grip firmly.' });
+  lines.push(scores.materialEfficiency >= 0.55 ? { cls:'good', text:'Efficient use of stock.' } :
+    { cls:'warn', text:'A fair amount of stock will end up as chips.' });
+  return lines;
+}
+
+var mfgStockPlacementDrag = null; /* live drag session state, not persisted */
+
+function mfgStockPlacementHtml(tmpl, key, editable){
+  var prep = state.mfgPrep[key];
+  var plan = prep ? prep.plan : (state.mfgActive ? state.mfgActive.plan : mfgComputeDefaultPlan(tmpl));
+  var stockOpt = mfgStockOption(tmpl, plan.stockId);
+  var placement = plan.stockPlacement || mfgDefaultStockPlacement(tmpl, stockOpt);
+  var m = mfgStockMargins(tmpl, stockOpt);
+  var scores = mfgScoreStockPlacement(tmpl, stockOpt, placement.dx, placement.dy);
+  var clean = state.mode === 'guided';
+
+  var stockChoiceHtml = '<div class="row" style="margin-bottom:.5em;">' + tmpl.stockOptions.map(function(s){
+    return '<button type="button" data-action="mfg-stock-choice" data-key="' + key + '" data-stock="' + s.id + '" aria-pressed="' + (s.id===stockOpt.id) + '" ' + (editable?'':'disabled') + '>' + s.label + '</button>';
+  }).join('') + '</div>';
+
+  var playW = 280, playH = 190, pad = 18;
+  var scale = fitScale(stockOpt.length, stockOpt.thickness, playW-2*pad, playH-2*pad);
+  var boxW = stockOpt.length*scale, boxH = stockOpt.thickness*scale;
+  var ox = (playW-boxW)/2, oy = (playH-boxH)/2;
+  var pal = materialBlockPalette(tmpl.materialKey);
+
+  var stockPath = polyPath(mfgStockProfile(tmpl, stockOpt.id), scale, scale, ox, oy, true, boxH);
+  var finishedPts = mfgFinishedProfile(tmpl);
+  var finishedPathBase = polyPath(finishedPts, scale, scale, ox, oy, true, boxH);
+
+  var tx = placement.dx*scale, ty = -placement.dy*scale;
+
+  var ghostHtml = '';
+  if(clean){
+    var rec = mfgDefaultStockPlacement(tmpl, stockOpt);
+    var rtx = rec.dx*scale, rty = -rec.dy*scale;
+    ghostHtml = '<path d="' + finishedPathBase + '" fill="none" stroke="var(--accent2)" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.55" transform="translate(' + rtx.toFixed(1) + ',' + rty.toFixed(1) + ')"/>';
+  }
+
+  var hitX = ox, hitY = oy+boxH-tmpl.finished.thickness*scale, hitW = tmpl.finished.length*scale, hitH = tmpl.finished.thickness*scale;
+
+  var svg = '<svg viewBox="0 0 ' + playW + ' ' + playH + '" class="minigame-stage" id="stockPlacementSvg" data-scale="' + scale + '" data-ox="' + ox + '" data-oy="' + oy + '" data-boxh="' + boxH + '" data-mx="' + m.marginXmax + '" data-my="' + m.marginYmax + '" data-clean="' + clean + '" shape-rendering="crispEdges">' +
+    '<path d="' + stockPath + '" fill="#2a2f38" stroke="#4a5468" stroke-width="1.5"/>' +
+    ghostHtml +
+    '<g id="stockPlacementDragGroup" class="minigame-drag-target" transform="translate(' + tx.toFixed(1) + ',' + ty.toFixed(1) + ')" touch-action="none">' +
+      '<rect x="' + hitX.toFixed(1) + '" y="' + hitY.toFixed(1) + '" width="' + hitW.toFixed(1) + '" height="' + hitH.toFixed(1) + '" fill="transparent"/>' +
+      '<path d="' + finishedPathBase + '" fill="' + pal.front + '" stroke="' + pal.side + '" stroke-width="2" style="pointer-events:none;"/>' +
+    '</g>' +
+    '<text x="6" y="' + (playH-6) + '" fill="#8a929e" font-size="8" font-family="Courier New,monospace">DRAG THE PART INTO POSITION</text>' +
+  '</svg>';
+
+  var hintHtml = clean ? '<div class="minigame-hint-box" id="stockPlacementHint">Leave a bit more than half the extra stock below the part &mdash; that\'s what the vise grips in Setup 1. Too little and the part can shift or come loose.</div>' : '';
+
+  var feedback = mfgStockPlacementFeedback(scores);
+  var resultHtml = '<div class="minigame-result" id="stockPlacementResult">' + feedback.map(function(f){
+    return '<span class="pill ' + f.cls + '">' + f.text + '</span>';
+  }).join('') + '</div>';
+
+  return '<div class="minigame">' +
+    '<p class="minigame-instruction">Place the part inside the stock.</p>' +
+    stockChoiceHtml +
+    svg +
+    '<div class="minigame-controls">' +
+      (editable ? '<button type="button" data-action="mfg-stock-reset" data-key="' + key + '">Reset to Recommended</button>' : '') +
+      (clean ? '<button type="button" data-action="mfg-stock-hint" data-key="' + key + '">' + (mfgStockHintOpen?'Hide Hint':'Show Hint') + '</button>' : '') +
+    '</div>' +
+    (mfgStockHintOpen ? hintHtml : '') +
+    resultHtml +
+  '</div>';
+}
+
+var mfgStockHintOpen = false;
+
+function mfgCommitStockPlacement(key, dx, dy){
+  var prep = state.mfgPrep[key];
+  if(!prep || prep.stage !== 'plan') return;
+  var tmpl = MFG_JOBS[key];
+  var stockOpt = mfgStockOption(tmpl, prep.plan.stockId);
+  var m = mfgStockMargins(tmpl, stockOpt);
+  dx = clamp(dx, 0, m.marginXmax);
+  dy = clamp(dy, 0, m.marginYmax);
+  if(state.mode === 'guided'){
+    [0.3,0.5,0.65,0.8].forEach(function(f){
+      var target = f*m.marginYmax;
+      if(Math.abs(dy-target) < m.marginYmax*0.1) dy = target;
+    });
+  }
+  prep.plan.stockPlacement = { dx: dx, dy: dy };
+  var scores = mfgScoreStockPlacement(tmpl, stockOpt, dx, dy);
+  prep.scores = Object.assign(prep.scores || mfgDefaultScores(), {
+    stockPlacementScore: scores.stockPlacementScore,
+    materialEfficiency: scores.materialEfficiency,
+    availableGrip: scores.availableGrip,
+    op2HoldingQuality: scores.op2HoldingQuality
+  });
+  scheduleAutosave();
+}
+
+function mfgWireStockPlacementDrag(){
+  var svg = document.getElementById('stockPlacementSvg');
+  var group = document.getElementById('stockPlacementDragGroup');
+  if(!svg || !group || !group.classList.contains('minigame-drag-target')) return;
+  var key = openMfgTmplKey;
+  var prep = state.mfgPrep[key];
+  var editable = prep && prep.stage === 'plan';
+  if(!editable) return;
+
+  var scale = parseFloat(svg.getAttribute('data-scale'));
+  var mx = parseFloat(svg.getAttribute('data-mx'));
+  var my = parseFloat(svg.getAttribute('data-my'));
+  var baseTx = 0, baseTy = 0;
+  var m0 = /translate\(([-\d.]+),([-\d.]+)\)/.exec(group.getAttribute('transform')||'');
+  if(m0){ baseTx = parseFloat(m0[1]); baseTy = parseFloat(m0[2]); }
+
+  var startX=0, startY=0, dragging=false;
+
+  function svgPoint(evt){
+    var rect = svg.getBoundingClientRect();
+    var vb = svg.viewBox.baseVal;
+    var sx = (evt.clientX - rect.left) * (vb.width/rect.width);
+    var sy = (evt.clientY - rect.top) * (vb.height/rect.height);
+    return { x: sx, y: sy };
+  }
+
+  group.addEventListener('pointerdown', function(evt){
+    dragging = true;
+    group.setPointerCapture(evt.pointerId);
+    svg.classList.add('dragging');
+    var p = svgPoint(evt);
+    startX = p.x; startY = p.y;
+    evt.preventDefault();
+  });
+  group.addEventListener('pointermove', function(evt){
+    if(!dragging) return;
+    var p = svgPoint(evt);
+    var dPxX = p.x - startX, dPxY = p.y - startY;
+    var tx = clamp(baseTx + dPxX, 0, mx*scale);
+    var ty = clamp(baseTy + dPxY, -my*scale, 0);
+    group.setAttribute('transform', 'translate(' + tx.toFixed(1) + ',' + ty.toFixed(1) + ')');
+  });
+  function endDrag(evt){
+    if(!dragging) return;
+    dragging = false;
+    svg.classList.remove('dragging');
+    var m1 = /translate\(([-\d.]+),([-\d.]+)\)/.exec(group.getAttribute('transform')||'');
+    var tx = m1 ? parseFloat(m1[1]) : baseTx;
+    var ty = m1 ? parseFloat(m1[2]) : baseTy;
+    var dx = tx/scale, dy = -ty/scale;
+    mfgCommitStockPlacement(key, dx, dy);
+    renderMfgModalContent();
+  }
+  group.addEventListener('pointerup', endDrag);
+  group.addEventListener('pointercancel', endDrag);
+}
+
 /* ---- Process Plan tab ---- */
 function mfgPlanTabHtml(tmpl, key){
   var prep = state.mfgPrep[key];
@@ -1353,8 +1585,10 @@ function mfgPlanTabHtml(tmpl, key){
   var editable = prep && prep.stage === 'plan';
   var warnings = evaluateMfgPlan(tmpl, plan);
 
-  var stockHtml = '<label for="mfg-stock">Starting stock</label><select id="mfg-stock" ' + (editable?'':'disabled') + ' data-action-change="mfg-set-stock">' +
-    tmpl.stockOptions.map(function(s){ return '<option value="'+s.id+'"' + (plan.stockId===s.id?' selected':'') + '>' + s.label + '</option>'; }).join('') + '</select>';
+  var stockHtml = key === 'lBracket' ?
+    mfgStockPlacementHtml(tmpl, key, editable) :
+    '<label for="mfg-stock">Starting stock</label><select id="mfg-stock" ' + (editable?'':'disabled') + ' data-action-change="mfg-set-stock">' +
+      tmpl.stockOptions.map(function(s){ return '<option value="'+s.id+'"' + (plan.stockId===s.id?' selected':'') + '>' + s.label + '</option>'; }).join('') + '</select>';
 
   var setupsHtml = tmpl.setupDefs.map(function(sd, idx){
     var s = plan.setups[idx];
@@ -3260,6 +3494,36 @@ document.addEventListener('click', function(e){
     }
     case 'mfg-partview':
       mfgPartView = el.getAttribute('data-view');
+      renderMfgModalContent();
+      break;
+    case 'mfg-stock-choice': {
+      var scKey = el.getAttribute('data-key');
+      var scPrep = state.mfgPrep[scKey];
+      if(scPrep && scPrep.stage === 'plan'){
+        scPrep.plan.stockId = el.getAttribute('data-stock');
+        scPrep.plan.stockPlacement = null;
+        var scTmpl = MFG_JOBS[scKey];
+        var scStockOpt = mfgStockOption(scTmpl, scPrep.plan.stockId);
+        var scDefault = mfgDefaultStockPlacement(scTmpl, scStockOpt);
+        mfgCommitStockPlacement(scKey, scDefault.dx, scDefault.dy);
+      }
+      renderMfgModalContent();
+      break;
+    }
+    case 'mfg-stock-reset': {
+      var srKey = el.getAttribute('data-key');
+      var srPrep = state.mfgPrep[srKey];
+      if(srPrep && srPrep.stage === 'plan'){
+        var srTmpl = MFG_JOBS[srKey];
+        var srStockOpt = mfgStockOption(srTmpl, srPrep.plan.stockId);
+        var srDefault = mfgDefaultStockPlacement(srTmpl, srStockOpt);
+        mfgCommitStockPlacement(srKey, srDefault.dx, srDefault.dy);
+      }
+      renderMfgModalContent();
+      break;
+    }
+    case 'mfg-stock-hint':
+      mfgStockHintOpen = !mfgStockHintOpen;
       renderMfgModalContent();
       break;
     case 'mfg-advance': {
