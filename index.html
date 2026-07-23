@@ -1137,6 +1137,8 @@ function mfgTickActive(dt){
       ap._chipTimer = 0;
       var layer = document.querySelector('#mfg-mill .chip-layer');
       if(layer) spawnChip(layer);
+      var idleLayer = document.querySelector('#production-idle:not(.hidden) #mill-mini-idle .chip-layer');
+      if(idleLayer) spawnChip(idleLayer);
     }
   }
 
@@ -3551,14 +3553,37 @@ function renderProduction(){
     active.classList.add('hidden');
     active.dataset.jobId = '';
     var mm = document.getElementById('mill-mini-idle');
-    if(mm) mm.innerHTML = millSvg(false);
     var idleMsg = document.getElementById('production-idle-msg');
     var idleMfgBtn = document.getElementById('production-idle-mfg-btn');
-    if(state.mfgActive){
-      var mfgTmpl = MFG_JOBS[state.mfgActive.tmplKey];
-      idleMsg.textContent = 'The MicroMill is running a blueprint job: ' + mfgTmpl.part + ' (' + mfgStageStatusLabel(state.mfgActive.stage) + ').';
+    var mfgA = state.mfgActive;
+    var mfgMachining = mfgA && (mfgA.stage==='firstArticle' || mfgA.stage==='production') && !mfgA.paused;
+
+    // Rebuild the mill widget only when its visual state changes, so the
+    // spindle animation and chips aren't destroyed on every frame while a
+    // blueprint job machines in the background.
+    var millSig = mfgA ? ('mfg|'+mfgA.tmplKey+'|'+(mfgMachining?'run':'idle')+'|'+MFG_JOBS[mfgA.tmplKey].materialKey) : 'none';
+    if(mm && idle.dataset.millSig !== millSig){
+      idle.dataset.millSig = millSig;
+      if(mfgA){
+        var tmplA = MFG_JOBS[mfgA.tmplKey];
+        mm.innerHTML = buildMillWidget(mfgMachining, 'idle', {
+          material: mfgMachining ? MATERIALS[tmplA.materialKey].label : null,
+          materialKey: tmplA.materialKey,
+          standbyText: mfgMachining ? null : mfgStageStatusLabel(mfgA.stage).toUpperCase(),
+          rpm: null, feed: null,
+          toolShape: 'endmill', workholding: 'vise',
+          coolantOn: !!state.upgrades.mistCoolant
+        });
+      } else {
+        mm.innerHTML = millSvg(false);
+      }
+    }
+
+    if(mfgA){
+      var mfgTmpl = MFG_JOBS[mfgA.tmplKey];
+      idleMsg.textContent = 'The MicroMill is running a blueprint job: ' + mfgTmpl.part + ' (' + mfgStageStatusLabel(mfgA.stage) + ').';
       idleMfgBtn.classList.remove('hidden');
-      idleMfgBtn.setAttribute('data-key', state.mfgActive.tmplKey);
+      idleMfgBtn.setAttribute('data-key', mfgA.tmplKey);
     } else {
       idleMsg.textContent = 'No active job. Accept a job from the Jobs tab to begin production.';
       idleMfgBtn.classList.add('hidden');
