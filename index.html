@@ -76,6 +76,7 @@ label{ display:block; margin:.5em 0 .2em; font-size:.9rem; color:var(--text-dim)
 .mill-hud-l{ left:8px; }
 .mill-hud-r{ right:8px; text-align:right; }
 .mill-hud-l div, .mill-hud-r div{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.chip-layer{ position:absolute; inset:0; pointer-events:none; }
 .chip{ position:absolute; width:6px; height:2px; background:#c9d3de; border-radius:0; opacity:0; pointer-events:none; }
 .chip.chip-b{ background:#8a929e; }
 @keyframes chip-fly{
@@ -175,7 +176,6 @@ table th, table td{ text-align:left; padding:.35em .4em; border-bottom:1px solid
 
   <div class="mill-stage" aria-hidden="true">
     <div id="mill-stage-svg" role="img" aria-label="Animated pixel-art illustration of a desktop CNC mill cutting aluminum"></div>
-    <div id="chip-field" style="position:absolute; left:0; top:0; width:100%; height:100%;"></div>
   </div>
 
   <div class="mode-select" role="group" aria-label="Choose a play mode">
@@ -349,9 +349,9 @@ var JOB_TEMPLATES = [
     qty:1, size:'50 x 30 x 8 mm', toleranceIn:0.008, finishLabel:'Standard', finishScoreReq:35,
     deadlineSec:100, payment:90, materialCostPerUnit:3, toolWear:0.5, repReward:2, latePenalty:10, rejectionRepPenalty:1,
     difficulty:1, ops:['contour'], toolKey:'em18', baseTotalSeconds:20, minRep:0 }),
-  job({ id:'t1_adapter', tier:1, customer:'SmallSat Hobbyist', category:'Maker Market', part:'Adapter Plate', materialKey:'aluminum',
+  job({ id:'t1_adapter', tier:1, customer:'SmallSat Hobbyist', category:'Maker Market', part:'Brass Adapter Plate', materialKey:'brass',
     qty:6, size:'70 x 70 x 8 mm', toleranceIn:0.004, finishLabel:'Good', finishScoreReq:60,
-    deadlineSec:165, payment:245, materialCostPerUnit:6, toolWear:1.1, repReward:5, latePenalty:28, rejectionRepPenalty:2,
+    deadlineSec:165, payment:275, materialCostPerUnit:9, toolWear:1.1, repReward:5, latePenalty:28, rejectionRepPenalty:2,
     difficulty:2, ops:['face','pocket','drill','chamfer'], toolKey:'em14', baseTotalSeconds:44, minRep:0 }),
 
   job({ id:'t2_moto', tier:2, customer:'RedlineCycle Restorations', category:'Local Repair & Prototype', part:'Motorcycle Engine Spacers', materialKey:'aluminum',
@@ -770,6 +770,15 @@ function productionTick(){
     state.machine.chipBuildup = clamp(state.machine.chipBuildup + dt*state.speed*0.6, 0, 100);
 
     maybeTriggerEvent(frac);
+
+    if(!reducedMotion){
+      ap._chipTimer = (ap._chipTimer||0) + dt;
+      if(ap._chipTimer >= 0.16){
+        ap._chipTimer = 0;
+        var chipLayer = document.querySelector('#mill-mini-active .chip-layer');
+        if(chipLayer) spawnChip(chipLayer);
+      }
+    }
 
     if(frac >= 1){
       finishProduction();
@@ -1321,15 +1330,36 @@ function statBox(label, value, cls){
 
 /* ============================== PRODUCTION PANEL RENDER ============================== */
 
+/* Workpiece color per material: derive a full shaded palette from one base
+   tone per material so the block visibly changes color with what's being cut. */
+var MATERIAL_BASE_COLOR = { aluminum:'#aeb8c4', delrin:'#ddd6bf', brass:'#c9a13f', mildsteel:'#5f6879' };
+function shadeHex(hex, pct){
+  var num = parseInt(hex.slice(1),16);
+  var r = (num>>16)&255, g = (num>>8)&255, b = num&255;
+  function adj(c){ return pct<0 ? c*(1+pct) : c+(255-c)*pct; }
+  r = clamp(Math.round(adj(r)),0,255); g = clamp(Math.round(adj(g)),0,255); b = clamp(Math.round(adj(b)),0,255);
+  return '#' + ((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+}
+function materialBlockPalette(materialKey){
+  var base = MATERIAL_BASE_COLOR[materialKey] || MATERIAL_BASE_COLOR.aluminum;
+  return {
+    top: shadeHex(base, 0.35), front: base, side: shadeHex(base, -0.25),
+    shelfTop: shadeHex(base, 0.18), shelfFront: shadeHex(base, -0.05),
+    stepShadow: shadeHex(base, -0.15), highlightLine: shadeHex(base, 0.5),
+    shadowLine: shadeHex(base, -0.15), cutNotch: shadeHex(base, -0.35)
+  };
+}
+
 /* Close-up pixel-art cutting shot: a spiral-fluted end mill plunging into a
-   stepped aluminum block against a dark vignette, no room/background chrome --
-   just the tool, the material, and flying chips. idSuffix keeps <defs> ids
-   unique when multiple copies exist in the DOM at once (start screen + production). */
-function buildMillScene(spinning, idSuffix){
+   stepped block against a dark vignette, no room/background chrome -- just
+   the tool, the material, and flying chips. idSuffix keeps <defs> ids unique
+   when multiple copies exist in the DOM at once (start screen + production). */
+function buildMillScene(spinning, idSuffix, materialKey){
   var spin = spinning && !reducedMotion;
   var fluteId = 'flutes-' + idSuffix;
   var shadeId = 'toolshade-' + idSuffix;
   var vigId = 'vignette-' + idSuffix;
+  var pal = materialBlockPalette(materialKey);
   var spiral = spin ?
     '<animateTransform attributeName="patternTransform" type="translate" calcMode="discrete" values="0 0;0 3;0 6;0 9" dur="0.3s" repeatCount="indefinite"/>' : '';
   return '<svg viewBox="0 0 200 150" shape-rendering="crispEdges" preserveAspectRatio="xMidYMid meet">' +
@@ -1358,17 +1388,17 @@ function buildMillScene(spinning, idSuffix){
     '<rect x="95" y="75" width="10" height="16" fill="url(#' + shadeId + ')"/>' +
     '<rect x="95" y="75" width="10" height="16" fill="url(#' + fluteId + ')"/>' +
 
-    '<rect x="30" y="96" width="66" height="6" fill="#c7d0d8"/>' +
-    '<rect x="30" y="102" width="66" height="20" fill="#96a1ac"/>' +
-    '<rect x="96" y="102" width="8" height="20" fill="#7d8794"/>' +
+    '<rect x="30" y="96" width="66" height="6" fill="' + pal.shelfTop + '"/>' +
+    '<rect x="30" y="102" width="66" height="20" fill="' + pal.shelfFront + '"/>' +
+    '<rect x="96" y="102" width="8" height="20" fill="' + pal.side + '"/>' +
 
-    '<rect x="96" y="78" width="60" height="6" fill="#dfe6ec"/>' +
-    '<rect x="96" y="84" width="60" height="38" fill="#aeb8c4"/>' +
-    '<rect x="148" y="84" width="8" height="38" fill="#7d8794"/>' +
-    '<rect x="96" y="78" width="8" height="12" fill="#8f99a5"/>' +
-    '<rect x="108" y="79" width="40" height="1" fill="#c3ccd4"/>' +
-    '<rect x="108" y="81" width="40" height="1" fill="#8f99a5"/>' +
-    '<rect x="94" y="76" width="12" height="6" fill="#6d7484"/>' +
+    '<rect x="96" y="78" width="60" height="6" fill="' + pal.top + '"/>' +
+    '<rect x="96" y="84" width="60" height="38" fill="' + pal.front + '"/>' +
+    '<rect x="148" y="84" width="8" height="38" fill="' + pal.side + '"/>' +
+    '<rect x="96" y="78" width="8" height="12" fill="' + pal.stepShadow + '"/>' +
+    '<rect x="108" y="79" width="40" height="1" fill="' + pal.highlightLine + '"/>' +
+    '<rect x="108" y="81" width="40" height="1" fill="' + pal.shadowLine + '"/>' +
+    '<rect x="94" y="76" width="12" height="6" fill="' + pal.cutNotch + '"/>' +
 
     '<rect x="10" y="130" width="180" height="10" fill="#1c1a16"/>' +
 
@@ -1385,11 +1415,12 @@ function buildMillHud(opts){
 }
 
 function buildMillWidget(spinning, idSuffix, hudOpts){
-  return '<div class="mill-scene">' + buildMillScene(spinning, idSuffix) + '</div>' + buildMillHud(hudOpts);
+  return '<div class="mill-scene">' + buildMillScene(spinning, idSuffix, hudOpts.materialKey) + '</div>' +
+    buildMillHud(hudOpts) + '<div class="chip-layer"></div>';
 }
 
 function idleHudOpts(){
-  return { material: null, standbyText: 'STANDBY', rpm: null, feed: null };
+  return { material: null, materialKey: null, standbyText: 'STANDBY', rpm: null, feed: null };
 }
 function millSvg(spinning){
   return buildMillWidget(spinning, 'mini', idleHudOpts());
@@ -1403,6 +1434,7 @@ function renderProduction(){
   if(!ap){
     idle.classList.remove('hidden');
     active.classList.add('hidden');
+    active.dataset.jobId = '';
     var mm = document.getElementById('mill-mini-idle');
     if(mm) mm.innerHTML = millSvg(false);
     return;
@@ -1429,10 +1461,19 @@ function renderProduction(){
   var qualityScore = clamp(100 - m.dimensionalRisk*0.5 - Math.max(0,50-m.finishScore)*0.5, 0, 100);
   var qualityLabel = qualityScore>=75?'Good':qualityScore>=50?'Fair':'At risk';
 
-  var html = '<div class="card">' +
-    '<div class="spread"><h2>' + jb.part + '</h2><span class="op-badge">' + currentOp + '</span></div>' +
-    '<div class="mill-mini" id="mill-mini-active" aria-hidden="true"></div>' +
-    (ap.phase==='running' ? (
+  if(active.dataset.jobId !== jb.instanceId){
+    active.innerHTML = '<div class="card">' +
+      '<div class="spread"><h2 id="pa-title"></h2><span class="op-badge" id="pa-op"></span></div>' +
+      '<div class="mill-mini" id="mill-mini-active" aria-hidden="true"></div>' +
+      '<div id="pa-body"></div>' +
+    '</div>';
+    active.dataset.jobId = jb.instanceId;
+    active.dataset.spin = '';
+  }
+  document.getElementById('pa-title').textContent = jb.part;
+  document.getElementById('pa-op').textContent = ap.phase==='running' ? currentOp : '';
+
+  var bodyHtml = ap.phase==='running' ? (
       '<div class="bar-track" role="progressbar" aria-valuenow="' + Math.round(frac*100) + '" aria-valuemin="0" aria-valuemax="100"><div class="bar-fill" style="width:' + (frac*100) + '%"></div></div>' +
       '<div class="stat-grid" style="margin-top:.6em;">' +
         statBox('Part', partNum + ' / ' + jb.qty) +
@@ -1445,18 +1486,22 @@ function renderProduction(){
       '</div>' +
       (warnings.length?'<ul class="warning-list">'+warnings.map(function(w){return '<li>'+w+'</li>';}).join('')+'</ul>':'') +
       (ap.pendingEvent ? eventHtml(ap.pendingEvent) : '')
-    ) : renderInspectionPanel(ap)) +
-    '</div>';
+    ) : renderInspectionPanel(ap);
+  document.getElementById('pa-body').innerHTML = bodyHtml;
 
-  active.innerHTML = html;
   var mmEl = document.getElementById('mill-mini-active');
   if(mmEl){
-    var activeHud = {
-      material: MATERIALS[jb.materialKey].label,
-      rpm: ap.setup.rpm,
-      feed: ap.setup.feedIPM
-    };
-    mmEl.innerHTML = buildMillWidget(ap.phase==='running' && !ap.paused, 'mini', activeHud);
+    var wantSpin = (ap.phase==='running' && !ap.paused) ? '1' : '0';
+    if(active.dataset.spin !== wantSpin){
+      var activeHud = {
+        material: MATERIALS[jb.materialKey].label,
+        materialKey: jb.materialKey,
+        rpm: ap.setup.rpm,
+        feed: ap.setup.feedIPM
+      };
+      mmEl.innerHTML = buildMillWidget(wantSpin==='1', 'mini', activeHud);
+      active.dataset.spin = wantSpin;
+    }
   }
 }
 
@@ -1748,11 +1793,11 @@ function spawnChip(field){
 function startChipAnimation(){
   reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   if(reducedMotion) return;
-  var field = document.getElementById('chip-field');
-  if(!field) return;
   chipInterval = setInterval(function(){
     var startScreen = document.getElementById('start-screen');
     if(!startScreen || startScreen.classList.contains('hidden')) return;
+    var field = document.querySelector('#mill-stage-svg .chip-layer');
+    if(!field) return;
     spawnChip(field);
   }, 240);
 }
@@ -2039,7 +2084,7 @@ function init(){
   reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   var svgHost = document.getElementById('mill-stage-svg');
   if(svgHost) svgHost.innerHTML = buildMillWidget(true, 'start', {
-    material: 'Aluminum', rpm: 12000, feed: 32
+    material: 'Aluminum', materialKey: 'aluminum', rpm: 12000, feed: 32
   });
   setStartMode('guided');
   startChipAnimation();
