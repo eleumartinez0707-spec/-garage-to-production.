@@ -140,8 +140,9 @@ table th, table td{ text-align:left; padding:.35em .4em; border-bottom:1px solid
 /* modal */
 .modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:flex-end; justify-content:center; z-index:50; padding:0; }
 @media (min-width:640px){ .modal-backdrop{ align-items:center; padding:1em; } }
-.modal{ background:var(--panel); border:1px solid var(--border); border-radius:var(--radius) var(--radius) 0 0; max-width:640px; width:100%; max-height:92vh; overflow-y:auto; padding:1.1em; }
+.modal{ background:var(--panel); border:1px solid var(--border); border-radius:var(--radius) var(--radius) 0 0; max-width:640px; width:100%; max-height:92vh; overflow-y:auto; padding:1.1em; overscroll-behavior:contain; }
 @media (min-width:640px){ .modal{ border-radius:var(--radius);} }
+body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behavior:none; touch-action:none; }
 .modal-header{ display:flex; justify-content:space-between; align-items:center; gap:.5em; margin-bottom:.5em; }
 .close-x{ background:transparent; border:none; font-size:1.4rem; padding:.2em .5em; min-width:44px; }
 
@@ -154,7 +155,7 @@ table th, table td{ text-align:left; padding:.35em .4em; border-bottom:1px solid
 /* ---------- MINIGAME SHELL ---------- */
 .minigame{ background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius); padding:.8em; margin-top:.5em; }
 .minigame-instruction{ font-weight:700; margin:0 0 .5em; font-size:1rem; }
-.minigame-stage{ width:100%; touch-action:none; user-select:none; -webkit-user-select:none; border-radius:8px; background:#0d1116; border:1px solid var(--border); display:block; }
+.minigame-stage{ width:100%; touch-action:none; overscroll-behavior:none; user-select:none; -webkit-user-select:none; border-radius:8px; background:#0d1116; border:1px solid var(--border); display:block; }
 .minigame-stage.dragging{ cursor:grabbing; }
 .minigame-drag-target{ cursor:grab; }
 .minigame-controls{ display:flex; gap:.5em; flex-wrap:wrap; margin-top:.6em; align-items:center; }
@@ -1523,6 +1524,12 @@ function mfgCommitStockPlacement(key, dx, dy){
   scheduleAutosave();
 }
 
+/* Locks page scroll/bounce/zoom for the duration of an active drag or trace
+   gesture (mobile Safari rubber-bands the whole page otherwise, even with
+   touch-action:none on the target element), then restores it on release. */
+function mfgLockPageGesture(){ document.body.classList.add('mc-gesture-lock'); }
+function mfgUnlockPageGesture(){ document.body.classList.remove('mc-gesture-lock'); }
+
 function mfgWireStockPlacementDrag(){
   var svg = document.getElementById('stockPlacementSvg');
   var group = document.getElementById('stockPlacementDragGroup');
@@ -1553,22 +1560,25 @@ function mfgWireStockPlacementDrag(){
     dragging = true;
     group.setPointerCapture(evt.pointerId);
     svg.classList.add('dragging');
+    mfgLockPageGesture();
     var p = svgPoint(evt);
     startX = p.x; startY = p.y;
     evt.preventDefault();
-  });
+  }, { passive:false });
   group.addEventListener('pointermove', function(evt){
     if(!dragging) return;
+    evt.preventDefault();
     var p = svgPoint(evt);
     var dPxX = p.x - startX, dPxY = p.y - startY;
     var tx = clamp(baseTx + dPxX, 0, mx*scale);
     var ty = clamp(baseTy + dPxY, -my*scale, 0);
     group.setAttribute('transform', 'translate(' + tx.toFixed(1) + ',' + ty.toFixed(1) + ')');
-  });
+  }, { passive:false });
   function endDrag(evt){
     if(!dragging) return;
     dragging = false;
     svg.classList.remove('dragging');
+    mfgUnlockPageGesture();
     var m1 = /translate\(([-\d.]+),([-\d.]+)\)/.exec(group.getAttribute('transform')||'');
     var tx = m1 ? parseFloat(m1[1]) : baseTx;
     var ty = m1 ? parseFloat(m1[2]) : baseTy;
@@ -1852,15 +1862,17 @@ function mfgWireContourTrace(){
   svg.addEventListener('pointerdown', function(evt){
     var p = svgPoint(evt);
     var startDist = Math.hypot(p.x-pxPts[0][0], p.y-pxPts[0][1]);
-    if(startDist > tolerance*1.6) return; /* must start near the marked start point */
+    if(startDist > tolerance*1.6) return; /* must start near the marked start point -- CSS touch-action:none on .minigame-stage already suppresses default gestures here regardless */
     tracing = true; maxProgress = 0; deviationSum = 0; sampleCount = 0; offCorridorCount = 0;
     svg.setPointerCapture(evt.pointerId);
     svg.classList.add('dragging');
+    mfgLockPageGesture();
     drawProgress();
     evt.preventDefault();
-  });
+  }, { passive:false });
   svg.addEventListener('pointermove', function(evt){
     if(!tracing) return;
+    evt.preventDefault();
     var p = svgPoint(evt);
     var proj = mfgProjectToPolyline([p.x,p.y], pxPts);
     sampleCount++;
@@ -1868,11 +1880,12 @@ function mfgWireContourTrace(){
     if(proj.dist > tolerance) offCorridorCount++;
     else if(proj.progress > maxProgress) maxProgress = proj.progress;
     drawProgress();
-  });
+  }, { passive:false });
   function endTrace(evt){
     if(!tracing) return;
     tracing = false;
     svg.classList.remove('dragging');
+    mfgUnlockPageGesture();
     var completion = clamp(maxProgress/totalLen, 0, 1);
     var avgDeviation = sampleCount ? deviationSum/sampleCount : tolerance;
     var cleanliness = clamp(1 - avgDeviation/(tolerance*2.2), 0, 1);
@@ -2798,6 +2811,7 @@ function closeModal(){
   var root = document.getElementById('modal-root');
   root.innerHTML = '';
   openMfgTmplKey = null;
+  mfgUnlockPageGesture();
 }
 
 /* ============================== HEADER / MASTER RENDER ============================== */
