@@ -1299,6 +1299,7 @@ function renderMfgModalContent(){
   host.innerHTML = '<div class="modal-header"><h2>' + tmpl.part + '</h2><button class="close-x" data-action="close-modal" aria-label="Close">&times;</button></div>' +
     tabsHtml + '<div id="mfg-tab-body">' + body + '</div>';
   mfgWireStockPlacementDrag();
+  mfgWireContourTrace();
 }
 
 function mfgUpdateLiveProgress(){
@@ -1703,6 +1704,192 @@ function mfgFeatureAssignmentHtml(tmpl, key, editable){
   '</div>';
 }
 
+/* ============================================================
+   MINIGAME: CONTOUR TRACE
+   Trace the L-step contour with a pointer to define the CAM
+   contour for the rough/finish passes (this represents selecting
+   the toolpath geometry, not manually driving the cutter).
+   ============================================================ */
+
+var MFG_TRACE_CONTOURS = {
+  lBracket: { featureId:'c1', points:[[25,50],[25,20],[80,20]] }
+};
+
+function mfgTraceGeometry(stockOpt){
+  var playW=280, playH=190, pad=18;
+  var scale = fitScale(stockOpt.length, stockOpt.thickness, playW-2*pad, playH-2*pad);
+  var boxW = stockOpt.length*scale, boxH = stockOpt.thickness*scale;
+  return { playW:playW, playH:playH, scale:scale, boxW:boxW, boxH:boxH, ox:(playW-boxW)/2, oy:(playH-boxH)/2 };
+}
+function mfgMmToPx(pt, geo){ return [geo.ox+pt[0]*geo.scale, geo.oy+geo.boxH-pt[1]*geo.scale]; }
+
+function mfgPolylineLength(pts){
+  var len = 0;
+  for(var i=1;i<pts.length;i++){ len += Math.hypot(pts[i][0]-pts[i-1][0], pts[i][1]-pts[i-1][1]); }
+  return len;
+}
+/* Projects p onto the polyline; returns {progress: arc-length distance from start, dist: perpendicular distance} */
+function mfgProjectToPolyline(p, pts){
+  var best = { progress:0, dist:Infinity };
+  var acc = 0;
+  for(var i=1;i<pts.length;i++){
+    var a = pts[i-1], b = pts[i];
+    var abx = b[0]-a[0], aby = b[1]-a[1];
+    var segLen = Math.hypot(abx,aby) || 0.0001;
+    var t = clamp(((p[0]-a[0])*abx + (p[1]-a[1])*aby) / (segLen*segLen), 0, 1);
+    var projX = a[0]+abx*t, projY = a[1]+aby*t;
+    var dist = Math.hypot(p[0]-projX, p[1]-projY);
+    var progress = acc + t*segLen;
+    if(dist < best.dist){ best = { progress:progress, dist:dist }; }
+    acc += segLen;
+  }
+  return best;
+}
+
+function mfgTraceTabHtml(tmpl, key, editable){
+  var contourDef = MFG_TRACE_CONTOURS[key];
+  if(!contourDef) return '';
+  var prep = state.mfgPrep[key];
+  var plan = prep ? prep.plan : (state.mfgActive ? state.mfgActive.plan : mfgComputeDefaultPlan(tmpl));
+  var stockOpt = mfgStockOption(tmpl, plan.stockId);
+  var geo = mfgTraceGeometry(stockOpt);
+  var clean = state.mode === 'guided';
+  var pxPts = contourDef.points.map(function(p){ return mfgMmToPx(p, geo); });
+  var guideD = 'M' + pxPts.map(function(p){ return p[0].toFixed(1)+','+p[1].toFixed(1); }).join(' L');
+
+  var stockPath = polyPath(mfgStockProfile(tmpl, stockOpt.id), geo.scale, geo.scale, geo.ox, geo.oy, true, geo.boxH);
+  var finishedPath = polyPath(mfgFinishedProfile(tmpl), geo.scale, geo.scale, geo.ox, geo.oy, true, geo.boxH);
+
+  var done = !!(plan.traceResult && plan.traceResult.score >= 0);
+  var score = plan.traceResult ? plan.traceResult.score : null;
+
+  var arrowsHtml = '';
+  if(clean){
+    for(var i=1;i<pxPts.length;i++){
+      var mx=(pxPts[i-1][0]+pxPts[i][0])/2, my=(pxPts[i-1][1]+pxPts[i][1])/2;
+      var ang = Math.atan2(pxPts[i][1]-pxPts[i-1][1], pxPts[i][0]-pxPts[i-1][0])*180/Math.PI;
+      arrowsHtml += '<text x="'+mx.toFixed(1)+'" y="'+my.toFixed(1)+'" fill="var(--accent2)" font-size="12" text-anchor="middle" transform="rotate('+ang.toFixed(1)+' '+mx.toFixed(1)+' '+my.toFixed(1)+')">&#10148;</text>';
+    }
+  }
+
+  var svg = '<svg viewBox="0 0 ' + geo.playW + ' ' + geo.playH + '" class="minigame-stage" id="traceSvg" data-clean="' + clean + '" shape-rendering="crispEdges">' +
+    '<path d="' + stockPath + '" fill="#20242c" stroke="#4a5468" stroke-width="1"/>' +
+    '<path d="' + finishedPath + '" fill="none" stroke="#5a6474" stroke-width="1" opacity="0.6"/>' +
+    '<path d="' + guideD + '" fill="none" stroke="var(--accent2)" stroke-width="' + (clean?7:4) + '" stroke-linecap="round" stroke-linejoin="round" opacity="' + (clean?0.35:0.25) + '"/>' +
+    '<path d="' + guideD + '" fill="none" stroke="#dff2ff" stroke-width="1.5" stroke-dasharray="5,4" stroke-linecap="round"/>' +
+    arrowsHtml +
+    '<path d="" id="traceProgressPath" fill="none" stroke="var(--good)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '<circle cx="' + pxPts[0][0].toFixed(1) + '" cy="' + pxPts[0][1].toFixed(1) + '" r="5" fill="var(--good)"/>' +
+    '<text x="' + (pxPts[0][0]+8).toFixed(1) + '" y="' + (pxPts[0][1]-6).toFixed(1) + '" fill="var(--good)" font-size="9">START</text>' +
+  '</svg>';
+
+  var resultHtml = '';
+  if(done){
+    var fb = score >= 0.8 ? { cls:'good', text:'Clean contour — CAM will follow this path closely.' } :
+      score >= 0.5 ? { cls:'warn', text:'Traced, but wandered off the path in places.' } :
+      { cls:'bad', text:'Incomplete or messy trace — try again.' };
+    resultHtml = '<div class="minigame-result"><span class="pill ' + fb.cls + '">' + fb.text + '</span></div>';
+  }
+
+  return '<div class="minigame">' +
+    '<p class="minigame-instruction">Trace the L-step contour to define the toolpath.</p>' +
+    svg +
+    '<div class="minigame-controls">' + (editable ? '<button type="button" data-action="mfg-trace-reset" data-key="' + key + '">Restart Trace</button>' : '') + '</div>' +
+    resultHtml +
+  '</div>';
+}
+
+function mfgWireContourTrace(){
+  var svg = document.getElementById('traceSvg');
+  if(!svg) return;
+  var key = openMfgTmplKey;
+  var prep = state.mfgPrep[key];
+  var editable = prep && prep.stage === 'plan';
+  if(!editable) return;
+  var tmpl = MFG_JOBS[key];
+  var contourDef = MFG_TRACE_CONTOURS[key];
+  if(!contourDef) return;
+  var stockOpt = mfgStockOption(tmpl, prep.plan.stockId);
+  var geo = mfgTraceGeometry(stockOpt);
+  var pxPts = contourDef.points.map(function(p){ return mfgMmToPx(p, geo); });
+  var totalLen = mfgPolylineLength(pxPts);
+  var clean = state.mode === 'guided';
+  var tolerance = clean ? 26 : 14;
+
+  var tracing = false, maxProgress = 0, deviationSum = 0, sampleCount = 0, offCorridorCount = 0;
+  var progressEl = document.getElementById('traceProgressPath');
+
+  function svgPoint(evt){
+    var rect = svg.getBoundingClientRect();
+    var vb = svg.viewBox.baseVal;
+    return { x:(evt.clientX-rect.left)*(vb.width/rect.width), y:(evt.clientY-rect.top)*(vb.height/rect.height) };
+  }
+  function pointAtProgress(dist){
+    var acc = 0;
+    for(var i=1;i<pxPts.length;i++){
+      var a=pxPts[i-1], b=pxPts[i];
+      var segLen = Math.hypot(b[0]-a[0], b[1]-a[1]);
+      if(dist <= acc+segLen || i===pxPts.length-1){
+        var t = segLen ? clamp((dist-acc)/segLen,0,1) : 0;
+        return [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t];
+      }
+      acc += segLen;
+    }
+    return pxPts[pxPts.length-1];
+  }
+  function drawProgress(){
+    var pts = [pxPts[0]];
+    var acc = 0;
+    for(var i=1;i<pxPts.length;i++){
+      var segLen = Math.hypot(pxPts[i][0]-pxPts[i-1][0], pxPts[i][1]-pxPts[i-1][1]);
+      if(maxProgress >= acc+segLen){ pts.push(pxPts[i]); }
+      else if(maxProgress > acc){ pts.push(pointAtProgress(maxProgress)); }
+      acc += segLen;
+    }
+    progressEl.setAttribute('d', 'M' + pts.map(function(p){ return p[0].toFixed(1)+','+p[1].toFixed(1); }).join(' L'));
+  }
+
+  svg.addEventListener('pointerdown', function(evt){
+    var p = svgPoint(evt);
+    var startDist = Math.hypot(p.x-pxPts[0][0], p.y-pxPts[0][1]);
+    if(startDist > tolerance*1.6) return; /* must start near the marked start point */
+    tracing = true; maxProgress = 0; deviationSum = 0; sampleCount = 0; offCorridorCount = 0;
+    svg.setPointerCapture(evt.pointerId);
+    svg.classList.add('dragging');
+    drawProgress();
+    evt.preventDefault();
+  });
+  svg.addEventListener('pointermove', function(evt){
+    if(!tracing) return;
+    var p = svgPoint(evt);
+    var proj = mfgProjectToPolyline([p.x,p.y], pxPts);
+    sampleCount++;
+    deviationSum += proj.dist;
+    if(proj.dist > tolerance) offCorridorCount++;
+    else if(proj.progress > maxProgress) maxProgress = proj.progress;
+    drawProgress();
+  });
+  function endTrace(evt){
+    if(!tracing) return;
+    tracing = false;
+    svg.classList.remove('dragging');
+    var completion = clamp(maxProgress/totalLen, 0, 1);
+    var avgDeviation = sampleCount ? deviationSum/sampleCount : tolerance;
+    var cleanliness = clamp(1 - avgDeviation/(tolerance*2.2), 0, 1);
+    var corridorPenalty = sampleCount ? clamp(1 - offCorridorCount/sampleCount, 0, 1) : 0.5;
+    var score = clamp(completion*0.55 + cleanliness*0.25 + corridorPenalty*0.2, 0, 1);
+    var prep2 = state.mfgPrep[key];
+    if(prep2 && prep2.stage === 'plan'){
+      prep2.plan.traceResult = { score:score, completion:completion };
+      prep2.scores = Object.assign(prep2.scores || mfgDefaultScores(), { traceScore: score });
+      scheduleAutosave();
+    }
+    renderMfgModalContent();
+  }
+  svg.addEventListener('pointerup', endTrace);
+  svg.addEventListener('pointercancel', endTrace);
+}
+
 /* ---- Process Plan tab ---- */
 function mfgPlanTabHtml(tmpl, key){
   var prep = state.mfgPrep[key];
@@ -1717,6 +1904,7 @@ function mfgPlanTabHtml(tmpl, key){
 
   var orientationHtml = key === 'lBracket' ? mfgOrientationHtml(tmpl, key, editable) : '';
   var featureAssignHtml = key === 'lBracket' ? mfgFeatureAssignmentHtml(tmpl, key, editable) : '';
+  var traceHtml = key === 'lBracket' ? mfgTraceTabHtml(tmpl, key, editable) : '';
 
   var setupsHtml = tmpl.setupDefs.map(function(sd, idx){
     var s = plan.setups[idx];
@@ -1739,7 +1927,7 @@ function mfgPlanTabHtml(tmpl, key){
     return '<li style="' + (w.level==='bad'?'':'background:rgba(255,204,51,.12); border-color:var(--warn); color:#ffe9a8;') + '">' + w.text + '</li>';
   }).join('') + '</ul>' : '<p class="pill good">No plan warnings.</p>';
 
-  return stockHtml + orientationHtml + featureAssignHtml + setupsHtml + '<h4 class="section-title">Plan Warnings</h4>' + warnHtml +
+  return stockHtml + orientationHtml + featureAssignHtml + traceHtml + setupsHtml + '<h4 class="section-title">Plan Warnings</h4>' + warnHtml +
     (editable ? '<button type="button" class="primary" style="width:100%; margin-top:.8em;" data-action="mfg-advance" data-key="' + key + '" data-to="programming-start">Confirm Plan &mdash; Begin Programming</button>' : '');
 }
 
@@ -3664,6 +3852,17 @@ document.addEventListener('click', function(e){
         orPrep.scores = Object.assign(orPrep.scores || mfgDefaultScores(), {
           orientationQuality: mfgScoreOrientation(orTmpl, orFace)
         });
+        scheduleAutosave();
+      }
+      renderMfgModalContent();
+      break;
+    }
+    case 'mfg-trace-reset': {
+      var trKey = el.getAttribute('data-key');
+      var trPrep = state.mfgPrep[trKey];
+      if(trPrep && trPrep.stage === 'plan'){
+        trPrep.plan.traceResult = null;
+        trPrep.scores = Object.assign(trPrep.scores || mfgDefaultScores(), { traceScore: 0.7 });
         scheduleAutosave();
       }
       renderMfgModalContent();
