@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Garage to Production</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='16' fill='%231a1f27'/%3E%3Crect x='20' y='62' width='60' height='12' rx='3' fill='%233a4252'/%3E%3Crect x='34' y='46' width='32' height='14' rx='2' fill='%238a929e'/%3E%3Crect x='47' y='16' width='6' height='32' fill='%234a5468'/%3E%3Ccircle cx='50' cy='48' r='5' fill='%23ff9d2f'/%3E%3C/svg%3E">
 <style>
 :root{
   --bg:#12151a; --bg2:#1a1f27; --panel:#1e2530; --panel2:#252d3a; --border:#333d4d;
@@ -33,7 +34,8 @@ button.primary:hover{ filter:brightness(1.08); }
 button.secondary{ background:var(--accent2); color:#001522; border-color:var(--accent2); font-weight:700; }
 button.danger{ background:var(--bad); color:#2a0000; border-color:var(--bad); font-weight:700; }
 button.ghost{ background:transparent; }
-button.tab-btn{ flex:1 1 0; border-radius:0; border:none; border-bottom:3px solid transparent; background:var(--bg2); min-width:64px;}
+button.tab-btn{ flex:0 0 auto; border-radius:0; border:none; border-bottom:3px solid transparent; background:var(--bg2); white-space:nowrap; padding:.6em .8em; font-size:.92rem; }
+@media (min-width:560px){ button.tab-btn{ flex:1 1 0; font-size:1rem; padding:.6em 1em; } }
 button.tab-btn[aria-selected="true"]{ border-bottom-color:var(--accent); background:var(--panel); color:var(--accent);}
 a, button, input, select, [tabindex]{ }
 :focus-visible{ outline:3px solid var(--focus); outline-offset:2px; }
@@ -96,7 +98,7 @@ label{ display:block; margin:.5em 0 .2em; font-size:.9rem; color:var(--text-dim)
 #speed-controls button[aria-pressed="true"]{ background:var(--accent2); color:#001522; border-color:var(--accent2);}
 #milestone-bar{ width:100%; margin-top:.3em; }
 #milestone-bar button{ width:100%; text-align:left; background:var(--panel); }
-#tabs-bar{ display:flex; position:sticky; top:0; z-index:19; background:var(--bg2); border-bottom:1px solid var(--border);}
+#tabs-bar{ display:flex; position:sticky; top:0; z-index:19; background:var(--bg2); border-bottom:1px solid var(--border); overflow-x:auto; -webkit-overflow-scrolling:touch; }
 main{ flex:1; padding:.8em; padding-bottom:2.5em; max-width:900px; margin:0 auto; width:100%; }
 .tab-panel{ display:none; }
 .tab-panel.active{ display:block; }
@@ -430,7 +432,6 @@ function safeRemove(key){
   try{ window.localStorage.removeItem(key); }catch(e){}
 }
 
-/* GAME_JS_MARKER_PART1_END */
 
 /* ============================== STATE ============================== */
 
@@ -531,14 +532,24 @@ function materialFamiliarityTier(materialKey){
   return 0;
 }
 
+var DIAMETER_REF = 0.1875;
+function effectiveChipLoadRange(tool, material){
+  var scale = tool.diameter / DIAMETER_REF;
+  return [material.chipLoadRange[0]*scale, material.chipLoadRange[1]*scale];
+}
+
 function recommendedSetup(jb){
   var tool = TOOLS[jb.toolKey];
-  var rpm = Math.round((tool.rpmRange[0]+tool.rpmRange[1])/2);
+  var material = MATERIALS[jb.materialKey];
+  var range = effectiveChipLoadRange(tool, material);
+  var targetChipLoad = (range[0]+range[1])/2;
   var feed = (tool.feedRangeIPM[0]+tool.feedRangeIPM[1])/2;
-  var axial = tool.diameter*0.5;
-  var radial = 40;
+  var rpm = Math.round(clamp(feed/(targetChipLoad*tool.flutes), tool.rpmRange[0], tool.rpmRange[1]));
+  var hardnessEase = clamp(1/material.hardness, 0.35, 1);
+  var axial = tool.diameter*0.5*hardnessEase;
+  var radial = clamp(40*hardnessEase, 15, 40);
   var lube = MATERIALS[jb.materialKey].lubeNeed === 'optional' ? 'dry' : 'mist';
-  return { toolKey: jb.toolKey, rpm:rpm, feedIPM: Math.round(feed*10)/10, axialDoc: Math.round(axial*1000)/1000, radialPct: radial, lube: lube };
+  return { toolKey: jb.toolKey, rpm:rpm, feedIPM: Math.round(feed*10)/10, axialDoc: Math.round(axial*1000)/1000, radialPct: Math.round(radial), lube: lube };
 }
 
 function presetSetup(jb, presetName){
@@ -569,17 +580,17 @@ function computeMetrics(jb, setup){
   var famTier = materialFamiliarityTier(jb.materialKey);
 
   var chipLoad = setup.feedIPM / (setup.rpm * tool.flutes);
-  var loMin = material.chipLoadRange[0], loMax = material.chipLoadRange[1];
+  var effRange = effectiveChipLoadRange(tool, material);
+  var loMin = effRange[0], loMax = effRange[1];
   var chipLoadDeviation = 0;
   if(chipLoad < loMin) chipLoadDeviation = (loMin-chipLoad)/loMin;
   else if(chipLoad > loMax) chipLoadDeviation = (chipLoad-loMax)/loMax;
 
   var mrr = computeMRR(setup, setup.toolKey);
-  var maxSustainableMRR = tool.diameter * 0.5 * rigidityFactor / material.hardness;
-  var machineLoadPct = clamp(100 * mrr / maxSustainableMRR, 0, 180);
-
   var rec = recommendedSetup(jb);
   var recMRR = computeMRR(rec, jb.toolKey);
+  var baselineRigidity = 0.875;
+  var machineLoadPct = clamp(58 * (mrr/recMRR) * (baselineRigidity/rigidityFactor), 0, 200);
   var timeFactor = clamp(recMRR / mrr, 0.45, 2.3);
   var camBonus = state.upgrades.camSoftware ? 0.9 : 1;
 
@@ -727,6 +738,7 @@ function startProduction(jb, setup, priceInfo){
 
 var lastTickTime = null;
 function productionTick(){
+  if(!state){ lastTickTime = null; requestAnimationFrame(productionTick); return; }
   var now = performance.now();
   if(lastTickTime === null) lastTickTime = now;
   var dt = (now - lastTickTime)/1000;
@@ -752,8 +764,6 @@ function productionTick(){
     if(frac >= 1){
       finishProduction();
     }
-    render();
-  } else {
     render();
   }
   requestAnimationFrame(productionTick);
