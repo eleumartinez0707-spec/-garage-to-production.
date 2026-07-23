@@ -69,15 +69,15 @@ label{ display:block; margin:.5em 0 .2em; font-size:.9rem; color:var(--text-dim)
 }
 #start-screen h1{ font-size:2.1rem; letter-spacing:.5px; margin-bottom:.1em;}
 #start-screen .subtitle{ color:var(--text-dim); margin-bottom:1em; }
-.mill-stage{ width:min(92vw,420px); height:260px; position:relative; margin:0 auto 1em; pointer-events:none; }
+.mill-stage{ width:min(92vw,420px); height:260px; position:relative; margin:0 auto 1em; pointer-events:none; image-rendering:pixelated; }
 .mill-stage svg{ width:100%; height:100%; display:block; }
-.chip{ position:absolute; width:6px; height:4px; background:#c9d3de; border-radius:1px; opacity:0; pointer-events:none; }
-@keyframes spin-cw{ from{ transform:rotate(0deg);} to{ transform:rotate(360deg);} }
+.chip{ position:absolute; width:5px; height:5px; background:#c9d3de; border-radius:0; opacity:0; pointer-events:none; }
+.chip.chip-b{ background:#8a929e; }
 @keyframes chip-fly{
   0%{ opacity:1; transform:translate(0,0) rotate(0deg) scale(1); }
-  100%{ opacity:0; transform:var(--chip-end) rotate(220deg) scale(.6); }
+  60%{ opacity:1; }
+  100%{ opacity:0; transform:var(--chip-end) rotate(90deg) scale(.7); }
 }
-.spindle-group{ transform-origin:center; animation:spin-cw .35s linear infinite; }
 .mode-select{ display:flex; gap:.6em; justify-content:center; margin:.6em 0; flex-wrap:wrap; }
 .mode-select button{ min-width:150px; }
 .mode-select button[aria-pressed="true"]{ background:var(--accent); color:#1a1200; border-color:var(--accent);}
@@ -148,7 +148,6 @@ table th, table td{ text-align:left; padding:.35em .4em; border-bottom:1px solid
 .toast.bad{ border-color:var(--bad); }
 
 @media (prefers-reduced-motion: reduce){
-  .spindle-group{ animation:none !important; }
   .chip{ animation:none !important; display:none !important; }
   *{ transition-duration:.001ms !important; }
 }
@@ -161,20 +160,7 @@ table th, table td{ text-align:left; padding:.35em .4em; border-bottom:1px solid
   <p class="subtitle">Build a CNC machine shop, one job at a time.</p>
 
   <div class="mill-stage" aria-hidden="true">
-    <svg viewBox="0 0 300 220" role="img" aria-label="Animated illustration of a desktop CNC mill cutting aluminum">
-      <rect x="10" y="10" width="280" height="200" rx="12" fill="#1a1f27" stroke="#333d4d"/>
-      <rect x="40" y="150" width="220" height="26" rx="4" fill="#3a4252" stroke="#4a5468"/>
-      <rect x="95" y="120" width="110" height="34" rx="3" fill="#8a929e" stroke="#5f6879"/>
-      <rect x="95" y="120" width="55" height="34" rx="3" fill="#6d7484"/>
-      <line x1="150" y1="40" x2="150" y2="120" stroke="#4a5468" stroke-width="10" stroke-linecap="round"/>
-      <g class="spindle-group" style="transform-box:fill-box;">
-        <circle cx="150" cy="122" r="9" fill="#c9d3de" stroke="#5f6879" stroke-width="2"/>
-        <line x1="150" y1="113" x2="150" y2="131" stroke="#3a4252" stroke-width="2"/>
-        <line x1="141" y1="122" x2="159" y2="122" stroke="#3a4252" stroke-width="2"/>
-      </g>
-      <rect x="20" y="185" width="260" height="6" fill="#12151a"/>
-      <text x="150" y="205" text-anchor="middle" fill="#a7b0c0" font-size="10" font-family="sans-serif">MicroMill D1</text>
-    </svg>
+    <div id="mill-stage-svg" role="img" aria-label="Animated pixel-art illustration of a desktop CNC mill cutting aluminum"></div>
     <div id="chip-field" style="position:absolute; left:0; top:0; width:100%; height:100%;"></div>
   </div>
 
@@ -1302,19 +1288,51 @@ function statBox(label, value, cls){
 
 /* ============================== PRODUCTION PANEL RENDER ============================== */
 
-function millSvg(spinning){
-  return '<svg viewBox="0 0 300 200" role="img" aria-label="MicroMill D1">' +
-    '<rect x="6" y="6" width="288" height="188" rx="10" fill="#1a1f27" stroke="#333d4d"/>' +
-    '<rect x="36" y="140" width="228" height="24" rx="4" fill="#3a4252" stroke="#4a5468"/>' +
-    '<rect x="90" y="112" width="120" height="30" rx="3" fill="#8a929e" stroke="#5f6879"/>' +
-    '<rect x="90" y="112" width="55" height="30" rx="3" fill="#6d7484"/>' +
-    '<line x1="150" y1="34" x2="150" y2="112" stroke="#4a5468" stroke-width="10" stroke-linecap="round"/>' +
-    '<g class="spindle-group" style="transform-box:fill-box;' + (spinning?'':' animation-play-state:paused;') + '">' +
-      '<circle cx="150" cy="114" r="8" fill="#c9d3de" stroke="#5f6879" stroke-width="2"/>' +
-      '<line x1="150" y1="106" x2="150" y2="122" stroke="#3a4252" stroke-width="2"/>' +
-      '<line x1="142" y1="114" x2="158" y2="114" stroke="#3a4252" stroke-width="2"/>' +
-    '</g>' +
+/* Retro low-poly pixel-art mill: blocky vise + workpiece + spindle plunging a fluted
+   end mill into the material, styled like an old Build-engine/Quake-era sprite.
+   idSuffix keeps <pattern> ids unique when multiple copies exist in the DOM at once. */
+function buildMillSvg(spinning, idSuffix, showLabel){
+  var spin = spinning && !reducedMotion;
+  var fluteId = 'flutes-' + idSuffix;
+  var stripes = spin ?
+    '<animateTransform attributeName="patternTransform" type="translate" calcMode="discrete" values="0 0;0 2;0 4;0 6" dur="0.28s" repeatCount="indefinite"/>' : '';
+  return '<svg viewBox="0 0 160 120" shape-rendering="crispEdges" preserveAspectRatio="xMidYMid meet">' +
+    '<defs>' +
+      '<pattern id="' + fluteId + '" patternUnits="userSpaceOnUse" width="8" height="8">' +
+        '<rect width="8" height="8" fill="#b7c1cd"/>' +
+        '<rect x="0" y="0" width="4" height="8" fill="#23262d"/>' +
+        stripes +
+      '</pattern>' +
+    '</defs>' +
+    '<rect x="0" y="0" width="160" height="120" fill="#1a1f27"/>' +
+    '<rect x="2" y="2" width="156" height="116" fill="none" stroke="#0d0f13" stroke-width="2"/>' +
+    '<rect x="10" y="106" width="140" height="4" fill="#0d0f13"/>' +
+
+    '<rect x="64" y="4" width="32" height="16" fill="#5f6879"/>' +
+    '<rect x="64" y="4" width="32" height="4" fill="#8a929e"/>' +
+    '<rect x="68" y="8" width="4" height="4" fill="#ff9d2f"/>' +
+    '<rect x="72" y="20" width="16" height="16" fill="#4a5468"/>' +
+    '<rect x="74" y="36" width="12" height="8" fill="#23262d"/>' +
+    '<rect x="76" y="44" width="8" height="12" fill="#d8e0e8"/>' +
+    '<rect x="80" y="44" width="4" height="12" fill="#aeb8c4"/>' +
+    '<rect x="76" y="56" width="8" height="14" fill="url(#' + fluteId + ')"/>' +
+
+    '<rect x="20" y="96" width="120" height="10" fill="#2a3140"/>' +
+    '<rect x="32" y="76" width="20" height="22" fill="#3a4252"/>' +
+    '<rect x="32" y="76" width="20" height="4" fill="#4a5468"/>' +
+    '<rect x="108" y="76" width="20" height="22" fill="#3a4252"/>' +
+    '<rect x="108" y="76" width="20" height="4" fill="#4a5468"/>' +
+
+    '<rect x="52" y="70" width="56" height="22" fill="#aeb8c4"/>' +
+    '<rect x="100" y="70" width="8" height="22" fill="#7d8794"/>' +
+    '<rect x="52" y="64" width="56" height="6" fill="#dfe6ec"/>' +
+    '<rect x="76" y="64" width="8" height="6" fill="#6d7484"/>' +
+
+    (showLabel ? '<text x="80" y="118" text-anchor="middle" fill="#8a929e" font-size="8" font-family="monospace" letter-spacing="1">MicroMill D1</text>' : '') +
     '</svg>';
+}
+function millSvg(spinning){
+  return buildMillSvg(spinning, 'mini', false);
 }
 
 function renderProduction(){
@@ -1647,17 +1665,18 @@ function setStartMode(m){
 
 function spawnChip(field){
   var chip = document.createElement('div');
-  chip.className = 'chip';
-  chip.style.left = '48%';
-  chip.style.top = '54%';
-  var angle = rnd(-60,10) * Math.PI/180;
-  var dist = rnd(28,64);
-  var dx = Math.cos(angle)*dist;
-  var dy = -Math.abs(Math.sin(angle)*dist) - rnd(4,14);
+  chip.className = 'chip' + (Math.random()<0.5 ? ' chip-b' : '');
+  chip.style.left = '50%';
+  chip.style.top = '55%';
+  var side = Math.random()<0.5 ? -1 : 1;
+  var spreadRad = rnd(15,70) * Math.PI/180;
+  var dist = rnd(26,58);
+  var dx = Math.sin(spreadRad)*dist*side;
+  var dy = -Math.cos(spreadRad)*dist - rnd(2,10);
   chip.style.setProperty('--chip-end', 'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px)');
-  chip.style.animation = 'chip-fly ' + rnd(0.5,0.85).toFixed(2) + 's ease-out forwards';
+  chip.style.animation = 'chip-fly ' + rnd(0.45,0.75).toFixed(2) + 's steps(4,end) forwards';
   field.appendChild(chip);
-  setTimeout(function(){ chip.remove(); }, 950);
+  setTimeout(function(){ chip.remove(); }, 850);
 }
 function startChipAnimation(){
   reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -1950,6 +1969,9 @@ document.addEventListener('keydown', function(e){
 /* ============================== INIT ============================== */
 
 function init(){
+  reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  var svgHost = document.getElementById('mill-stage-svg');
+  if(svgHost) svgHost.innerHTML = buildMillSvg(true, 'start', true);
   setStartMode('guided');
   startChipAnimation();
   refreshContinueButton();
