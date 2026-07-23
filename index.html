@@ -164,6 +164,7 @@ table th, table td{ text-align:left; padding:.35em .4em; border-bottom:1px solid
 .minigame-hint-box{ background:rgba(63,182,255,.1); border:1px solid var(--accent2); border-radius:6px; padding:.5em .7em; font-size:.82rem; margin-top:.5em; color:#bfe8ff; }
 .snap-zone{ opacity:.35; }
 .snap-zone.active{ opacity:.85; }
+.minigame .row button[aria-pressed="true"]{ background:var(--accent); color:#1a1200; border-color:var(--accent); }
 .event-modal .bolt-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:.6em; margin:1em 0; }
 .bolt-btn{ aspect-ratio:1/1; font-size:1.4rem; background:var(--bg2); }
 .bolt-btn.done{ background:var(--good); color:#003; }
@@ -1578,6 +1579,66 @@ function mfgWireStockPlacementDrag(){
   group.addEventListener('pointercancel', endDrag);
 }
 
+/* ============================================================
+   MINIGAME: ORIENTATION SELECTION
+   Flip the part to choose which face machines first, and see
+   which features are reachable (upward face only) versus blocked
+   from that orientation -- a direct, visual read of the
+   three-axis rule "only the up-facing side can be machined."
+   ============================================================ */
+
+function mfgOrientationFaces(tmpl){
+  var faces = [];
+  tmpl.features.forEach(function(f){ if(f.face && faces.indexOf(f.face) === -1) faces.push(f.face); });
+  return faces;
+}
+
+function mfgScoreOrientation(tmpl, orientation){
+  var setup1Features = tmpl.features.filter(function(f){ return f.setupMin === tmpl.setupDefs[0].n; });
+  var accessible = setup1Features.filter(function(f){ return f.face === orientation; }).length;
+  var quality = setup1Features.length ? clamp(accessible / setup1Features.length, 0.1, 1) : 0.7;
+  return quality;
+}
+
+function mfgOrientationHtml(tmpl, key, editable){
+  var prep = state.mfgPrep[key];
+  var plan = prep ? prep.plan : (state.mfgActive ? state.mfgActive.plan : mfgComputeDefaultPlan(tmpl));
+  var orientation = plan.orientation || tmpl.setupDefs[0].faceUp;
+  var faces = mfgOrientationFaces(tmpl);
+  var faceLabel = { top:'Top Face Up', bottom:'Bottom Face Up', side:'Side Face Up' };
+
+  var choiceHtml = '<div class="row" style="margin-bottom:.5em;">' + faces.map(function(f){
+    return '<button type="button" data-action="mfg-orientation-choice" data-key="' + key + '" data-face="' + f + '" aria-pressed="' + (f===orientation) + '" ' + (editable?'':'disabled') + '>' + (faceLabel[f]||f) + '</button>';
+  }).join('') + '</div>';
+
+  var stockOpt = mfgStockOption(tmpl, plan.stockId);
+  var partSvg = buildPartVisualSVG(tmpl, 'stock', { stockId: stockOpt.id });
+  var flipStyle = orientation === tmpl.setupDefs[0].faceUp ? '' : ' style="transform:scaleY(-1);"';
+
+  var setup1Features = tmpl.features.filter(function(f){ return f.setupMin === tmpl.setupDefs[0].n; });
+  var otherFeatures = tmpl.features.filter(function(f){ return f.setupMin !== tmpl.setupDefs[0].n; });
+  var badgeHtml = function(f, accessible){
+    return '<span class="pill ' + (accessible?'good':'') + '" style="' + (accessible?'':'opacity:.55;') + ' margin:.15em;">' + (accessible?'&#10003; ':'&#128274; ') + f.label + '</span>';
+  };
+  var accessibleHtml = setup1Features.map(function(f){ return badgeHtml(f, f.face === orientation); }).join('');
+  var laterHtml = otherFeatures.map(function(f){ return badgeHtml(f, false); }).join('');
+
+  var quality = mfgScoreOrientation(tmpl, orientation);
+  var feedback = quality >= 0.75 ?
+    { cls:'good', text:'Good choice — most of Setup 1\'s features are reachable from here.' } :
+    { cls:'bad', text:'This face blocks Setup 1\'s features — you would need to flip immediately.' };
+
+  return '<div class="minigame">' +
+    '<p class="minigame-instruction">Which face should be machined first?</p>' +
+    choiceHtml +
+    '<div class="mill-mini" style="max-width:220px; margin:0 auto;" aria-hidden="true"><div' + flipStyle + '>' + partSvg + '</div></div>' +
+    '<h4 class="section-title" style="margin-top:.6em; font-size:.85rem;">Reachable this setup</h4>' +
+    '<div>' + (accessibleHtml || '<span class="muted">None from this face.</span>') + '</div>' +
+    (laterHtml ? '<h4 class="section-title" style="margin-top:.5em; font-size:.85rem;">Needs a later setup regardless</h4><div>' + laterHtml + '</div>' : '') +
+    '<div class="minigame-result"><span class="pill ' + feedback.cls + '">' + feedback.text + '</span></div>' +
+  '</div>';
+}
+
 /* ---- Process Plan tab ---- */
 function mfgPlanTabHtml(tmpl, key){
   var prep = state.mfgPrep[key];
@@ -1589,6 +1650,8 @@ function mfgPlanTabHtml(tmpl, key){
     mfgStockPlacementHtml(tmpl, key, editable) :
     '<label for="mfg-stock">Starting stock</label><select id="mfg-stock" ' + (editable?'':'disabled') + ' data-action-change="mfg-set-stock">' +
       tmpl.stockOptions.map(function(s){ return '<option value="'+s.id+'"' + (plan.stockId===s.id?' selected':'') + '>' + s.label + '</option>'; }).join('') + '</select>';
+
+  var orientationHtml = key === 'lBracket' ? mfgOrientationHtml(tmpl, key, editable) : '';
 
   var setupsHtml = tmpl.setupDefs.map(function(sd, idx){
     var s = plan.setups[idx];
@@ -1611,7 +1674,7 @@ function mfgPlanTabHtml(tmpl, key){
     return '<li style="' + (w.level==='bad'?'':'background:rgba(255,204,51,.12); border-color:var(--warn); color:#ffe9a8;') + '">' + w.text + '</li>';
   }).join('') + '</ul>' : '<p class="pill good">No plan warnings.</p>';
 
-  return stockHtml + setupsHtml + '<h4 class="section-title">Plan Warnings</h4>' + warnHtml +
+  return stockHtml + orientationHtml + setupsHtml + '<h4 class="section-title">Plan Warnings</h4>' + warnHtml +
     (editable ? '<button type="button" class="primary" style="width:100%; margin-top:.8em;" data-action="mfg-advance" data-key="' + key + '" data-to="programming-start">Confirm Plan &mdash; Begin Programming</button>' : '');
 }
 
@@ -3526,6 +3589,21 @@ document.addEventListener('click', function(e){
       mfgStockHintOpen = !mfgStockHintOpen;
       renderMfgModalContent();
       break;
+    case 'mfg-orientation-choice': {
+      var orKey = el.getAttribute('data-key');
+      var orPrep = state.mfgPrep[orKey];
+      if(orPrep && orPrep.stage === 'plan'){
+        var orFace = el.getAttribute('data-face');
+        orPrep.plan.orientation = orFace;
+        var orTmpl = MFG_JOBS[orKey];
+        orPrep.scores = Object.assign(orPrep.scores || mfgDefaultScores(), {
+          orientationQuality: mfgScoreOrientation(orTmpl, orFace)
+        });
+        scheduleAutosave();
+      }
+      renderMfgModalContent();
+      break;
+    }
     case 'mfg-advance': {
       var advKey = el.getAttribute('data-key');
       var advTo = el.getAttribute('data-to');
