@@ -813,6 +813,7 @@ function buildBlueprintSVG(tmpl){
 }
 
 /* ---- Part / stock layered visual: finished, stock, or mid-operation state ---- */
+var mfgPartVisualSeq = 0;
 function buildPartVisualSVG(tmpl, viewMode, ctx){
   ctx = ctx || {};
   var stockId = ctx.stockId || tmpl.recommendedStockId;
@@ -858,6 +859,37 @@ function buildPartVisualSVG(tmpl, viewMode, ctx){
         svg += '<ellipse cx="'+fx.toFixed(1)+'" cy="'+fy.toFixed(1)+'" rx="'+r.toFixed(1)+'" ry="'+(r*0.6).toFixed(1)+'" fill="'+(done?'#0d0d0c':pal.cutNotch)+'" stroke="'+pal.stepShadow+'" stroke-width="0.6"/>';
       }
     });
+  }
+
+  if(ctx.showTool){
+    // Spindle head + endmill plunging into the top surface, so the machining
+    // views actually show a cutter at work (not just the part). Flute hatching
+    // shimmers via a stepped SMIL translate when spinning.
+    var tX = ox + pxW*0.42;
+    var contactY = oy - depthPx*0.35;
+    var spin = ctx.spinning && !reducedMotion;
+    // spindle housing
+    svg += '<rect x="'+(tX-12)+'" y="0" width="24" height="10" fill="#5f6879" stroke="#2a2f38" stroke-width="1"/>';
+    svg += '<rect x="'+(tX-12)+'" y="0" width="24" height="3" fill="#8a929e"/>';
+    // tool holder / collet
+    svg += '<rect x="'+(tX-6)+'" y="10" width="12" height="6" fill="#4a5468"/>';
+    svg += '<rect x="'+(tX-6)+'" y="10" width="12" height="1.5" fill="#6a7280"/>';
+    // endmill body
+    var millTop = 16, millH = Math.max(6, contactY - millTop);
+    svg += '<rect x="'+(tX-3.5)+'" y="'+millTop+'" width="7" height="'+millH.toFixed(1)+'" fill="#d0d7de"/>';
+    svg += '<rect x="'+(tX-3.5)+'" y="'+millTop+'" width="2" height="'+millH.toFixed(1)+'" fill="#eef2f6"/>';
+    svg += '<rect x="'+(tX+1.5)+'" y="'+millTop+'" width="2" height="'+millH.toFixed(1)+'" fill="#9aa2ae"/>';
+    // flute hatching (a small clipped group of diagonal lines that shimmers)
+    var flutes = '';
+    for(var fl=-2; fl<millH/3+1; fl++){
+      var fy0 = millTop + fl*4;
+      flutes += '<line x1="'+(tX-3.5)+'" y1="'+(fy0+4).toFixed(1)+'" x2="'+(tX+3.5)+'" y2="'+fy0.toFixed(1)+'" stroke="#7a828e" stroke-width="1.2"/>';
+    }
+    var clipId = 'mclip'+(++mfgPartVisualSeq);
+    svg += '<clipPath id="'+clipId+'"><rect x="'+(tX-3.5)+'" y="'+millTop+'" width="7" height="'+millH.toFixed(1)+'"/></clipPath>';
+    svg += '<g clip-path="url(#'+clipId+')"><g>' + flutes +
+      (spin ? '<animateTransform attributeName="transform" type="translate" calcMode="discrete" values="0 0;0 1.3;0 2.6;0 4" dur="0.24s" repeatCount="indefinite"/>' : '') +
+      '</g></g>';
   }
 
   svg += '<text x="10" y="146" fill="#8a929e" font-size="7" letter-spacing="1">' + label + '</text>';
@@ -942,16 +974,35 @@ function mfgBeginProgramming(tmplKey){
   return true;
 }
 function mfgTickPreps(dt){
-  var any = false;
+  var completed = false, anyProgramming = false;
   for(var key in state.mfgPrep){
     var prep = state.mfgPrep[key];
     if(prep.stage === 'programming' && prep.programTimeRemaining > 0){
       prep.programTimeRemaining = Math.max(0, prep.programTimeRemaining - dt*state.speed);
-      any = true;
-      if(prep.programTimeRemaining <= 0){ prep.stage = 'readyForSetup'; }
+      anyProgramming = true;
+      if(prep.programTimeRemaining <= 0){ prep.stage = 'readyForSetup'; completed = true; }
     }
   }
-  if(any) render();
+  // Only a full render when a job actually finishes programming (structural
+  // change). While the countdown ticks, do a lightweight text update so the
+  // job board and modal DOM stay stable and their buttons stay clickable --
+  // otherwise rebuilding every frame destroys the close X and other job
+  // cards mid-click.
+  if(completed) render();
+  else if(anyProgramming) mfgUpdateProgrammingDisplay();
+}
+
+function mfgUpdateProgrammingDisplay(){
+  if(!openMfgTmplKey) return;
+  var prep = state.mfgPrep[openMfgTmplKey];
+  if(!prep || prep.stage !== 'programming') return;
+  var remEl = document.getElementById('mfg-prog-remaining');
+  if(remEl) remEl.textContent = fmtTime(prep.programTimeRemaining);
+  var fillEl = document.getElementById('mfg-prog-fill');
+  if(fillEl){
+    var pct = 100 - Math.round(100*prep.programTimeRemaining/Math.max(1,prep.programTotalSeconds));
+    fillEl.style.width = pct + '%';
+  }
 }
 
 /* ---- Cycle time / quality model ---- */
@@ -1322,7 +1373,7 @@ function mfgCurrentStageKey(tmplKey){
 function renderBlueprintJobs(){
   var host = document.getElementById('blueprint-jobs');
   if(!host) return;
-  host.innerHTML = state.mfgBoard.map(function(key){
+  var html = state.mfgBoard.map(function(key){
     var tmpl = MFG_JOBS[key];
     var stageKey = mfgCurrentStageKey(key);
     var onMachine = state.mfgActive && state.mfgActive.tmplKey === key;
@@ -1338,6 +1389,10 @@ function renderBlueprintJobs(){
       '<button type="button" data-action="open-mfg-job" data-key="' + key + '">' + (stageKey==='blueprint' && !state.mfgPrep[key] && !onMachine ? 'View Blueprint' : 'Continue') + '</button>' +
     '</div>';
   }).join('');
+  // Only touch the DOM when the rendered markup actually changes, so a
+  // background job ticking (which triggers render() every frame) doesn't
+  // rebuild these cards mid-click and break the buttons.
+  if(host.__lastHtml !== html){ host.__lastHtml = html; host.innerHTML = html; }
 }
 function mfgStageStatusLabel(stageKey){
   return { blueprint:'Reviewing Blueprint', plan:'Planning', programming:'Programming', readyForSetup:'Ready for Setup',
@@ -1371,6 +1426,15 @@ function renderMfgModalContent(){
 
   if(liveTicking && mfgModalRenderSig === sig && document.getElementById('mfg-progress-fill')){
     mfgUpdateLiveProgress();
+    return;
+  }
+  // Programming countdown: if a parallel machining job forces a full render()
+  // every frame, don't rebuild the programming modal each time -- update just
+  // the countdown so the close X and controls stay clickable.
+  var progPrep = state.mfgPrep[key];
+  if(progPrep && progPrep.stage === 'programming' && mfgActiveTab === 'programming' &&
+     mfgModalRenderSig === sig && document.getElementById('mfg-prog-remaining')){
+    mfgUpdateProgrammingDisplay();
     return;
   }
   mfgModalRenderSig = sig;
@@ -1409,7 +1473,7 @@ function mfgUpdateLiveProgress(){
     if(completedSig !== mfgMillSvgSig){
       mfgMillSvgSig = completedSig;
       var tmpl = MFG_JOBS[ap.tmplKey];
-      svgHost.innerHTML = buildPartVisualSVG(tmpl, 'operation', { stockId: ap.plan.stockId, completedFeatureIds: ap.completedFeatureIds });
+      svgHost.innerHTML = buildPartVisualSVG(tmpl, 'operation', { stockId: ap.plan.stockId, completedFeatureIds: ap.completedFeatureIds, showTool: true, spinning: !ap.paused });
     }
   }
 }
@@ -2076,9 +2140,9 @@ function mfgProgrammingTabHtml(tmpl, key){
       '<button type="button" class="primary" style="width:100%; margin-top:.4em;" data-action="mfg-begin-programming" data-key="' + key + '">Generate Program</button>';
   } else if(isProgramming){
     var pct = 100 - Math.round(100*prep.programTimeRemaining/Math.max(1,prep.programTotalSeconds));
-    actionHtml = '<p>Programming in progress&hellip; (' + fmtTime(prep.programTimeRemaining) + ' remaining)</p>' +
-      '<div class="bar-track"><div class="bar-fill" style="width:' + pct + '%"></div></div>' +
-      '<p class="muted" style="font-size:.8rem;">This runs in the background &mdash; feel free to switch tabs, run another job, or check back later.</p>';
+    actionHtml = '<p>Programming in progress&hellip; (<span id="mfg-prog-remaining">' + fmtTime(prep.programTimeRemaining) + '</span> remaining)</p>' +
+      '<div class="bar-track"><div class="bar-fill" id="mfg-prog-fill" style="width:' + pct + '%"></div></div>' +
+      '<p class="muted" style="font-size:.8rem;">This runs in the background &mdash; feel free to close this and open another blueprint, or check back later.</p>';
   } else if(ready){
     actionHtml = '<p class="pill good">Program ready.</p>' +
       '<button type="button" class="primary" style="width:100%; margin-top:.4em;" data-action="mfg-setup-machine" data-key="' + key + '" ' + (mfgMachineBusy()?'disabled':'') + '>' +
@@ -2131,7 +2195,7 @@ function mfgFirstArticleTabHtml(tmpl, key){
   }
   return mfgSpeedRowHtml() +
     '<div class="mill-mini" id="mfg-mill" style="max-width:280px; margin:.6em auto;" aria-hidden="true">' +
-      '<div id="mfg-mill-svg">' + buildPartVisualSVG(tmpl, 'operation', { stockId: ap.plan.stockId, completedFeatureIds: ap.completedFeatureIds }) + '</div>' +
+      '<div id="mfg-mill-svg">' + buildPartVisualSVG(tmpl, 'operation', { stockId: ap.plan.stockId, completedFeatureIds: ap.completedFeatureIds, showTool: true, spinning: !ap.paused }) + '</div>' +
       '<div class="chip-layer"></div>' +
       mfgCoolantOverlayHtml() +
     '</div>' +
@@ -2190,7 +2254,7 @@ function mfgProductionTabHtml(tmpl, key){
     var frac = clamp(ap.elapsedSim/Math.max(1,ap.totalSim),0,1);
     runningHtml = mfgSpeedRowHtml() +
       '<div class="mill-mini" id="mfg-mill" style="max-width:280px; margin:.6em auto;" aria-hidden="true">' +
-        '<div id="mfg-mill-svg">' + buildPartVisualSVG(tmpl, 'operation', { stockId: ap.plan.stockId, completedFeatureIds: ap.completedFeatureIds }) + '</div>' +
+        '<div id="mfg-mill-svg">' + buildPartVisualSVG(tmpl, 'operation', { stockId: ap.plan.stockId, completedFeatureIds: ap.completedFeatureIds, showTool: true, spinning: !ap.paused }) + '</div>' +
         '<div class="chip-layer"></div>' +
         mfgCoolantOverlayHtml() +
       '</div>' +
@@ -3012,33 +3076,33 @@ function render(){
 function renderJobBoard(){
   var host = document.getElementById('job-board');
   if(!host) return;
+  var html;
   if(mfgMachineBusy()){
-    host.innerHTML = '<div class="card"><p>Your machine is busy. Finish the current job in the <b>Production</b> tab before accepting a new one.</p></div>';
-    return;
+    html = '<div class="card"><p>Your machine is busy. Finish the current job in the <b>Production</b> tab before accepting a new one.</p></div>';
+  } else if(!state.board.length){
+    html = '<div class="card"><p class="muted">No jobs available right now. Check back after finishing a job.</p></div>';
+  } else {
+    html = state.board.map(function(jb){
+      var fit = capabilityFit(jb);
+      var locked = materialLockedFor(jb);
+      return '<div class="card job-card">' +
+        '<div class="spread"><h3 style="margin:0;">' + jb.part + '</h3><span class="pill ' + fit.cls + '" title="Capability fit">' + fit.label + '</span></div>' +
+        '<div class="muted jc-sub">' + jb.customer + '</div>' +
+        '<div class="jc-row">' +
+          '<span class="jc-price">' + (jb.isBid ? 'RFQ &middot; Bid' : fmtMoney(jb.payment)) + '</span>' +
+          (jb.isBid ? '' : '<span class="jc-deadline" title="Deadline">&#9201; ' + fmtTime(jb.deadlineSec) + '</span>') +
+        '</div>' +
+        '<div class="jc-row jc-meta">' +
+          materialChipHtml(jb.materialKey) +
+          difficultyDotsHtml(jb.difficulty) +
+          '<span class="muted jc-qty" title="Quantity">&times;' + jb.qty + '</span>' +
+        '</div>' +
+        (locked ? '<p class="pill bad">Locked &mdash; needs Better Tooling Package</p>' : '') +
+        '<button type="button" data-action="open-job-detail" data-id="' + jb.instanceId + '">Inspect Job</button>' +
+      '</div>';
+    }).join('');
   }
-  if(!state.board.length){
-    host.innerHTML = '<div class="card"><p class="muted">No jobs available right now. Check back after finishing a job.</p></div>';
-    return;
-  }
-  host.innerHTML = state.board.map(function(jb){
-    var fit = capabilityFit(jb);
-    var locked = materialLockedFor(jb);
-    return '<div class="card job-card">' +
-      '<div class="spread"><h3 style="margin:0;">' + jb.part + '</h3><span class="pill ' + fit.cls + '" title="Capability fit">' + fit.label + '</span></div>' +
-      '<div class="muted jc-sub">' + jb.customer + '</div>' +
-      '<div class="jc-row">' +
-        '<span class="jc-price">' + (jb.isBid ? 'RFQ &middot; Bid' : fmtMoney(jb.payment)) + '</span>' +
-        (jb.isBid ? '' : '<span class="jc-deadline" title="Deadline">&#9201; ' + fmtTime(jb.deadlineSec) + '</span>') +
-      '</div>' +
-      '<div class="jc-row jc-meta">' +
-        materialChipHtml(jb.materialKey) +
-        difficultyDotsHtml(jb.difficulty) +
-        '<span class="muted jc-qty" title="Quantity">&times;' + jb.qty + '</span>' +
-      '</div>' +
-      (locked ? '<p class="pill bad">Locked &mdash; needs Better Tooling Package</p>' : '') +
-      '<button type="button" data-action="open-job-detail" data-id="' + jb.instanceId + '">Inspect Job</button>' +
-    '</div>';
-  }).join('');
+  if(host.__lastHtml !== html){ host.__lastHtml = html; host.innerHTML = html; }
 }
 
 function findBoardJob(id){ return state.board.find(function(b){ return b.instanceId===id; }); }
