@@ -67,8 +67,19 @@ label{ display:block; margin:.5em 0 .2em; font-size:.9rem; color:var(--text-dim)
   padding:1.2em; text-align:center; position:relative; overflow:hidden;
   background:radial-gradient(ellipse at 50% -10%, #2a2116 0%, var(--bg) 60%);
 }
-#start-screen h1{ font-size:2.1rem; letter-spacing:.5px; margin-bottom:.1em;}
-#start-screen .subtitle{ color:var(--text-dim); margin-bottom:1em; }
+#start-screen h1{ font-size:2.1rem; letter-spacing:.5px; margin:0; color:#fff9ec; text-shadow:0 2px 0 #000, 0 0 12px rgba(255,157,47,.25); }
+.title-plate{
+  position:relative; display:inline-block; padding:.5em 1.3em .45em; margin-bottom:.3em;
+  background:linear-gradient(160deg,#3a4252,#252d3a 60%); border:3px solid #12151a; border-radius:14px;
+  box-shadow:0 6px 0 #0a0c10, inset 0 0 0 2px rgba(255,255,255,.05); transform:rotate(-1.2deg);
+}
+.title-plate::before, .title-plate::after{
+  content:""; position:absolute; width:9px; height:9px; border-radius:50%;
+  background:radial-gradient(circle at 35% 35%, #cfd6df, #6b7280 70%); box-shadow:inset 0 0 0 1px #12151a;
+  top:8px; left:8px;
+}
+.title-plate::after{ left:auto; right:8px; }
+#start-screen .subtitle{ color:var(--text-dim); margin:.5em 0 1em; }
 .mill-stage{ width:min(92vw,420px); height:260px; position:relative; margin:0 auto 1em; pointer-events:none; image-rendering:pixelated; overflow:hidden; border-radius:8px; border:2px solid #000; background:#0d0d0c; }
 .mill-scene{ position:absolute; inset:0; }
 .mill-scene svg{ width:100%; height:100%; display:block; }
@@ -84,13 +95,22 @@ label{ display:block; margin:.5em 0 .2em; font-size:.9rem; color:var(--text-dim)
   60%{ opacity:1; }
   100%{ opacity:0; transform:var(--chip-end) rotate(90deg) scale(.7); }
 }
-.mode-select{ display:flex; gap:.6em; justify-content:center; margin:.6em 0; flex-wrap:wrap; }
-.mode-select button{ min-width:150px; line-height:1.5; }
-.mode-select button small{ display:block; font-weight:400; opacity:.8; font-size:.78em; }
-.mode-select button[aria-pressed="true"]{ background:var(--accent); color:#1a1200; border-color:var(--accent);}
+.mode-select{ display:flex; gap:.7em; justify-content:center; margin:.6em 0; flex-wrap:wrap; }
+.mode-btn{
+  min-width:150px; display:flex; flex-direction:column; align-items:center; gap:.3em;
+  padding:.7em 1em .6em; border-radius:12px; border:3px solid #12151a; line-height:1.3;
+  box-shadow:0 4px 0 rgba(0,0,0,.35); transition:transform .08s ease;
+}
+.mode-btn:active{ transform:translateY(2px); box-shadow:0 2px 0 rgba(0,0,0,.35); }
+.mode-btn-icon{ width:34px; height:34px; image-rendering:pixelated; }
+.mode-btn-label small{ display:block; font-weight:400; opacity:.85; font-size:.78em; }
+.mode-btn-clean{ background:linear-gradient(160deg,#3fb6ff,#1d7bc4); color:#04202f; }
+.mode-btn-shop{ background:linear-gradient(160deg,#3a4252,#252d3a); color:#e8ecf2; }
+.mode-btn[aria-pressed="true"]{ border-color:var(--accent); box-shadow:0 0 0 2px var(--accent), 0 4px 0 rgba(0,0,0,.35); }
 .start-actions{ display:flex; gap:.7em; flex-wrap:wrap; justify-content:center; margin-top:.8em; }
 .start-actions button{ min-width:200px; font-size:1.05rem; }
 #start-screen .mode-desc{ max-width:440px; color:var(--text-dim); font-size:.88rem; min-height:2.4em; }
+.start-settings-btn{ margin-top:1em; background:transparent; border-color:var(--border); }
 
 /* ---------- APP LAYOUT ---------- */
 #app{ display:flex; flex-direction:column; min-height:100vh; }
@@ -166,6 +186,7 @@ body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behav
 .snap-zone{ opacity:.35; }
 .snap-zone.active{ opacity:.85; }
 .minigame .row button[aria-pressed="true"]{ background:var(--accent); color:#1a1200; border-color:var(--accent); }
+.modal .row button[aria-pressed="true"]{ background:var(--accent); color:#1a1200; border-color:var(--accent); }
 .event-modal .bolt-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:.6em; margin:1em 0; }
 .bolt-btn{ aspect-ratio:1/1; font-size:1.4rem; background:var(--bg2); }
 .bolt-btn.done{ background:var(--good); color:#003; }
@@ -193,7 +214,9 @@ body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behav
 <body>
 
 <div id="start-screen">
-  <h1>Making Chips</h1>
+  <div class="title-plate">
+    <h1>Making Chips</h1>
+  </div>
   <p class="subtitle">Build your shop. Prove the process. Keep the spindles turning.</p>
 
   <div class="mill-stage" aria-hidden="true">
@@ -201,8 +224,14 @@ body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behav
   </div>
 
   <div class="mode-select" role="group" aria-label="Choose a play mode">
-    <button type="button" data-action="set-start-mode" data-mode="guided" aria-pressed="true">Clean Hands<br><small>Easy / Guided</small></button>
-    <button type="button" data-action="set-start-mode" data-mode="machinist" aria-pressed="false">Shop Hands<br><small>Experienced Machinist</small></button>
+    <button type="button" class="mode-btn mode-btn-clean" data-action="set-start-mode" data-mode="guided" aria-pressed="true">
+      <img class="mode-btn-icon" src="" data-sprite="iconCleanHand" alt="">
+      <span class="mode-btn-label">Clean Hands<br><small>Easy / Guided</small></span>
+    </button>
+    <button type="button" class="mode-btn mode-btn-shop" data-action="set-start-mode" data-mode="machinist" aria-pressed="false">
+      <img class="mode-btn-icon" src="" data-sprite="iconShopHand" alt="">
+      <span class="mode-btn-label">Shop Hands<br><small>Experienced Machinist</small></span>
+    </button>
   </div>
   <p class="mode-desc" id="mode-desc">Visual guidance, helpful hints, forgiving controls, and recommended machining choices.</p>
 
@@ -211,6 +240,7 @@ body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behav
     <button type="button" class="secondary" id="continue-btn" data-action="continue-game" disabled>Continue Shop</button>
   </div>
   <p class="muted" id="continue-hint" style="margin-top:.6em; font-size:.8rem;">No saved shop found yet.</p>
+  <button type="button" class="ghost start-settings-btn" data-action="open-start-settings">&#9881; Settings</button>
 </div>
 
 <div id="app" class="hidden">
@@ -2184,6 +2214,7 @@ function defaultState(){
     history: [],
     tutorial: { completed:false },
     milestoneShown:false,
+    settings: Object.assign({ volume: 70, graphics: 'full' }, (typeof uiSettings !== 'undefined' ? uiSettings : {})),
     createdAt: Date.now()
   };
 }
@@ -2206,6 +2237,7 @@ function loadGame(){
     data.stats = Object.assign({}, base.stats, data.stats||{});
     data.stats.materialJobsCount = Object.assign({}, base.stats.materialJobsCount, (data.stats.materialJobsCount||{}));
     data.tutorial = Object.assign({}, base.tutorial, data.tutorial||{});
+    data.settings = Object.assign({}, base.settings, data.settings||{});
     if(!Array.isArray(data.board)) data.board = [];
     if(!Array.isArray(data.history)) data.history = [];
     if(!isNum(data.cash)) data.cash = base.cash;
@@ -2799,6 +2831,51 @@ function checkMilestone(){
 }
 
 
+/* ============================== SOUND ============================== */
+/* Minimal self-contained SFX via Web Audio oscillators -- no audio files,
+   no external assets. Gated entirely by state.settings.volume so the
+   Settings volume slider has a real, audible effect. */
+
+var _audioCtx = null;
+function getAudioCtx(){
+  if(_audioCtx) return _audioCtx;
+  try{
+    var Ctx = window.AudioContext || window.webkitAudioContext;
+    if(!Ctx) return null;
+    _audioCtx = new Ctx();
+  }catch(e){ return null; }
+  return _audioCtx;
+}
+
+function playTone(freq, durMs, opts){
+  var vol = currentSettings().volume;
+  if(!vol || vol <= 0) return;
+  var ctx = getAudioCtx();
+  if(!ctx) return;
+  if(ctx.state === 'suspended'){ ctx.resume().catch(function(){}); }
+  opts = opts || {};
+  var t0 = ctx.currentTime + (opts.delay||0);
+  var osc = ctx.createOscillator();
+  var gain = ctx.createGain();
+  osc.type = opts.type || 'square';
+  osc.frequency.setValueAtTime(freq, t0);
+  if(opts.slideTo) osc.frequency.linearRampToValueAtTime(opts.slideTo, t0 + durMs/1000);
+  var peak = (vol/100) * (opts.gain != null ? opts.gain : 0.06);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.linearRampToValueAtTime(peak, t0 + 0.008);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + durMs/1000);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(t0);
+  osc.stop(t0 + durMs/1000 + 0.02);
+}
+
+function playSfx(kind){
+  if(kind === 'good'){ playTone(520, 90, { type:'square', gain:0.07 }); playTone(760, 130, { delay:0.09, type:'square', gain:0.07 }); }
+  else if(kind === 'bad'){ playTone(220, 220, { type:'sawtooth', slideTo:120, gain:0.06 }); }
+  else if(kind === 'warn'){ playTone(340, 110, { type:'triangle', gain:0.05 }); }
+  else { playTone(440, 55, { type:'square', gain:0.045 }); }
+}
+
 /* ============================== TOAST ============================== */
 
 function toast(msg, kind){
@@ -2809,6 +2886,7 @@ function toast(msg, kind){
   el.textContent = msg;
   region.appendChild(el);
   setTimeout(function(){ el.remove(); }, 3200);
+  playSfx(kind);
 }
 
 /* ============================== MODAL ============================== */
@@ -3101,6 +3179,8 @@ var MFG_SPRITES = {
   toeClampB: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADYAAAAwCAYAAABaHInAAAAA/UlEQVR4nO2ZMQrCQBBFN+JJRKysrD2CiIexsEyZwsOIeARrK9lCxKtolWEWDEaYMf7PvGqLkOTxh9mdpEpGzBfLZ7terTcfrz8dD7K+Xs6V1Xu0jKxv+C+EGBohhkaIoUErNva4qd58h4I2MVox8zNaSint6r2cG7vK0uN8qKFNjFbMpStqJtOZrB/3m/fjBNrEaMXcS/GX5aehTYxWLLoiGrRi0RXRoBUrRgc9bliRc5a1Lss+n8H70NTbt+MPbWK0YkVX1GXjgd6svZ9Fm1iIoRFiaBRdUW+guoMhQpsYrVjn2DLUuGEFbWK0YmYTtPffk2+hTSzE0AgxNF4M1jMZzBqivAAAAABJRU5ErkJggg==',
   vise: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJwAAABmCAYAAAA+sfgyAAAC/klEQVR4nO3dv2sUQRjG8VWCpVWqEBCCiFilSCFCGv+FiIhIQImNhOsCVv5IJaQ7gk1EIYWIaJEijRw2OYLCFRYSQogBIVjEVBapArFQlilu2Vky88y7me+nWo7Nztzew/sye3ubogAAAAAAAAAAAAAAAAAAAABg17nYA/z8dXgSe4wQLo2NBj8XOb/3KudVAwFFQeAgRuAgReAgReAgNRJ7gIXHz2r3WXpRv09TM7fuBj9m7Dl8/PA2+Bx8zr8SFQ5SBA5S0Vuqj7X1XtTjz95/MPT11Tevo47bdA6xz4MFVDhIEThImWipsSlbp+U5WECFgxSBg1QWLbUtq9QcUOEgReAglUVLtdC2LMzBAiocpAgcpLJoqT4rRPcHL+4tPe6tU01fd29PYpX6DxUOUgQOUlm0VAtty8IcLKDCQYrAQSqLlmphhWhhDhZQ4SBF4CCVRUu10LYszMECKhykCBykoj+I7vbsfJKH8u3t7pTbPivEqn1Ow+f47j4Tl68En4OP96vLQ3PQXXnX6LPrPLxTmycqHKQIHKRYpf7X3+gnn0PbVbVgt9VS4SBF4CAVrKXOrfweWk7/bDwPNQQiqfrs+h6fnXs1oIrbaqlwkCJwkIq+Sr04/TT2EENNTicZ1twcYnMvVlddQC6KgpaKNAgcpIK11MHXH6EOBSNCfbM72PzEhV+kQeAg1crvUke2npTbx9cWE84krdjnYefCvXL726vrQW5lo8JBisBBqpUtNec26mrjeaDCQYrAQYrAQYrAQYrAQSrYKvVwbxDqUDjDqHCQInCQInCQInCQInCQ8rrlZHLuS+1TdFilnm2jE1O1+1TdwuT+lx8qHKQIHKSCXfj1KbnIh/t4h7X1Xvk6FQ5SBA5SXqvU8ZvLSZ7Ta8GN8e1G+2/uX400E/v2P8/zjF/YQuAg1cof0aTS6Twqt7vdlwln0l5UOEgROEjRUhugjZ4eFQ5SBA5SXi316OB77HmY1Tto+hf5nisfVDhIEThIEThIEThIEThI/QWV4LFBqGK50QAAAABJRU5ErkJggg==',
   toolHolder: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAABgCAYAAABBsBH+AAABoklEQVR4nO2cIUtDURiGnfgjRGQYxbwkRrEsGDSI3Wq0WFYsRqswYWnVYBGTXpaGgkEWp4xh8D+4tMMJ98rkfN/Z9r7vkw6Xy+55eD8u387OWW0lI5/jn9/p+P7hqfSe87OTmuccVj0/fBGRMDoSRkfC6NAJr83rwYfN/TA+Oj7N9ly6hOmE3Us67p9jqnrpxu5BuL/fezTvq+kSljA6EkZHwujQCbssmP232Yjp3LVLr1s1IXQJ0wmblXRKGVfhUd50CUsYHQmjI2F06ISTGg+PZqMKqyaELmE64cpy2NzaDuV6cdnKMhlLrq9aYTwaDoInXcJ0wjP91FK8FN7zyAZdwhJGR8LozPSW7j3b98bzgi5hCaMjYXSSVjyK/kfpikdO9ho7WvH4CzrhpJ14r2/vVvPIBl3CEkZHwugkvaWXcXGPLmEJoyNhdMx24t3cdrN9VUw5RU6XMJ2w2UGtZWlC6BKWMDoSRkfC6NAJuxzUinfxWRHvpkuBLmE6YZc/PVjfqIfx9/jL5PpoODCZG13CEkZHwuio8UCHTlgIIcQiMwGB1F/vZ+7UdQAAAABJRU5ErkJggg==',
+  iconCleanHand: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAA1ElEQVR4nO2YsQ2DMBRETZQBGCBFygyRQTIDBcNQZIYMwgApUqRIkSIDsAF0iEggYZ/RcdK9Clmy5ac7iQ8hGGMMk2KLQ7v23o/Pv/e4Xp4uYW79fGuS73FI3bgX5AWgCi1VJRakWvIJyAsckc1IbXKdI5+ABdhYgI0F2FiAjQXYQLPQdAzORXmtokZ8+QTkBVZVaPrl9beeaZxGkE9AXmBdhXZQlSXkE7AAGwuwgX4tfh/17AsOIfZPtXwC8gLQOP18fXLdIxn5BCzAxgJsLMBGXmAAUsAp4DQvg8kAAAAASUVORK5CYII=',
+  iconShopHand: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAA8UlEQVR4nO2YMQrCQBBFV/EQIkFELKw9jLUnsPIYniYHsLS0thAJIUhuoZVhiizZ3dkw+fBfNQzZZT//w87GOUIIsWQ2xqbH0/n7r5u66vrFeuP6+vdbmXyOeerCqQAvQBUhX1Ri0UQL3gF4AQvNYk1scu0D7wAFWEMB1lCANfACVBeZpP00Xb1cFVn6IcA7AC9AFSE5Bsva901IP/Z1Bu8AvICgCMmXlyTXOK0B3gF4AUERmkJUfMA7QAHWUIA1ql+L2/2h94LT8H4+OAtBER2h1zV/bHzsLsNxgncAXkD0i6yt6jHOkQy8AxRgDQVY8wPFHTsTJ2P3hwAAAABJRU5ErkJggg==',
 };
 
 /* Workpiece color per material: derive a full shaded palette from one base
@@ -3494,6 +3574,24 @@ function showChapterComplete(){
 
 /* ============================== RESET / MODE ============================== */
 
+function settingsModalHtml(){
+  var s = currentSettings();
+  return '<div class="modal-header"><h2>Settings</h2><button class="close-x" data-action="close-modal" aria-label="Close">&times;</button></div>' +
+    '<div class="card">' +
+      '<label for="set-volume">Volume</label>' +
+      '<input type="range" id="set-volume" min="0" max="100" value="' + s.volume + '" style="width:100%;">' +
+      '<p class="muted" id="set-volume-label" style="font-size:.82rem;">' + (s.volume===0?'Muted':s.volume+'%') + '</p>' +
+    '</div>' +
+    '<div class="card" style="margin-top:.6em;">' +
+      '<label>Graphics</label>' +
+      '<div class="row">' +
+        '<button type="button" data-action="set-graphics" data-value="full" aria-pressed="' + (s.graphics==='full') + '">Full</button>' +
+        '<button type="button" data-action="set-graphics" data-value="simple" aria-pressed="' + (s.graphics==='simple') + '">Simple</button>' +
+      '</div>' +
+      '<p class="muted" style="font-size:.8rem; margin-top:.4em;">Simple reduces chips, mist, and other motion effects.</p>' +
+    '</div>';
+}
+
 function resetModalHtml(){
   return '<div class="modal-header"><h2>Reset Game?</h2><button class="close-x" data-action="close-modal" aria-label="Close">&times;</button></div>' +
     '<p>This will permanently erase your saved shop and start over from $4,500. This cannot be undone.</p>' +
@@ -3586,6 +3684,33 @@ function finishTutorial(){
   if(state){ state.tutorial.completed = true; scheduleAutosave(); }
 }
 
+/* ============================== SETTINGS (pre-game + in-game) ============================== */
+/* Volume/graphics need to work on the start screen before any save exists,
+   and then follow whichever save is loaded once a game starts. uiSettings
+   is the pre-game / cross-save copy (its own small localStorage key);
+   state.settings is the per-save copy once a game exists. currentSettings()
+   always returns whichever is authoritative right now. */
+
+var UI_SETTINGS_KEY = 'mc_ui_settings';
+var uiSettings = (function(){
+  try{
+    var raw = window.localStorage && window.localStorage.getItem(UI_SETTINGS_KEY);
+    if(raw){ var parsed = JSON.parse(raw); if(parsed && typeof parsed === 'object') return Object.assign({ volume:70, graphics:'full' }, parsed); }
+  }catch(e){}
+  return { volume:70, graphics:'full' };
+})();
+function saveUiSettings(){ try{ window.localStorage && window.localStorage.setItem(UI_SETTINGS_KEY, JSON.stringify(uiSettings)); }catch(e){} }
+function currentSettings(){ return (state && state.settings) ? state.settings : uiSettings; }
+function applySetting(key, value){
+  uiSettings[key] = value;
+  saveUiSettings();
+  if(state && state.settings){ state.settings[key] = value; scheduleAutosave(); }
+  recomputeReducedMotion();
+}
+function recomputeReducedMotion(){
+  reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) || currentSettings().graphics === 'simple';
+}
+
 /* ============================== START SCREEN ANIMATION ============================== */
 
 var startMode = 'guided';
@@ -3617,7 +3742,7 @@ function spawnChip(field){
   setTimeout(function(){ chip.remove(); }, 850);
 }
 function startChipAnimation(){
-  reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  recomputeReducedMotion();
   if(reducedMotion) return;
   chipInterval = setInterval(function(){
     var startScreen = document.getElementById('start-screen');
@@ -3715,6 +3840,7 @@ document.addEventListener('click', function(e){
   switch(action){
     case 'set-start-mode':
       setStartMode(el.getAttribute('data-mode'));
+      playSfx('click');
       break;
     case 'start-new-game':
       withLock(function(){
@@ -3874,6 +4000,13 @@ document.addEventListener('click', function(e){
       break;
     case 'reset-game':
       openModal(resetModalHtml());
+      break;
+    case 'open-start-settings':
+      openModal(settingsModalHtml());
+      break;
+    case 'set-graphics':
+      applySetting('graphics', el.getAttribute('data-value'));
+      openModal(settingsModalHtml());
       break;
     case 'confirm-reset':
       resetGame();
@@ -4087,6 +4220,12 @@ document.addEventListener('input', function(e){
       render();
     }
   }
+  if(t.id==='set-volume'){
+    var vol = parseInt(t.value,10);
+    applySetting('volume', vol);
+    var lbl = document.getElementById('set-volume-label');
+    if(lbl) lbl.textContent = vol===0 ? 'Muted' : vol+'%';
+  }
 });
 
 document.addEventListener('keydown', function(e){
@@ -4122,7 +4261,11 @@ document.addEventListener('change', function(e){
 /* ============================== INIT ============================== */
 
 function init(){
-  reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  recomputeReducedMotion();
+  document.querySelectorAll('[data-sprite]').forEach(function(el){
+    var key = el.getAttribute('data-sprite');
+    if(MFG_SPRITES[key]) el.src = MFG_SPRITES[key];
+  });
   var svgHost = document.getElementById('mill-stage-svg');
   if(svgHost) svgHost.innerHTML = buildMillWidget(true, 'start', {
     material: 'Aluminum', materialKey: 'aluminum', rpm: 12000, feed: 32
