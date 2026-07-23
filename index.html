@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Garage to Production</title>
+<title>Making Chips</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='16' fill='%231a1f27'/%3E%3Crect x='20' y='62' width='60' height='12' rx='3' fill='%233a4252'/%3E%3Crect x='34' y='46' width='32' height='14' rx='2' fill='%238a929e'/%3E%3Crect x='47' y='16' width='6' height='32' fill='%234a5468'/%3E%3Ccircle cx='50' cy='48' r='5' fill='%23ff9d2f'/%3E%3C/svg%3E">
 <style>
 :root{
@@ -85,7 +85,8 @@ label{ display:block; margin:.5em 0 .2em; font-size:.9rem; color:var(--text-dim)
   100%{ opacity:0; transform:var(--chip-end) rotate(90deg) scale(.7); }
 }
 .mode-select{ display:flex; gap:.6em; justify-content:center; margin:.6em 0; flex-wrap:wrap; }
-.mode-select button{ min-width:150px; }
+.mode-select button{ min-width:150px; line-height:1.5; }
+.mode-select button small{ display:block; font-weight:400; opacity:.8; font-size:.78em; }
 .mode-select button[aria-pressed="true"]{ background:var(--accent); color:#1a1200; border-color:var(--accent);}
 .start-actions{ display:flex; gap:.7em; flex-wrap:wrap; justify-content:center; margin-top:.8em; }
 .start-actions button{ min-width:200px; font-size:1.05rem; }
@@ -123,6 +124,11 @@ main{ flex:1; padding:.8em; padding-bottom:2.5em; max-width:900px; margin:0 auto
 .diff-dot{ width:7px; height:7px; background:var(--bg2); border:1px solid var(--border); display:inline-block; }
 .diff-dot.filled{ background:var(--accent); border-color:var(--accent); }
 .section-title{ margin-top:1.4em; }
+.quick-jobs-collapse{ margin-top:1.6em; border-top:1px solid var(--border); padding-top:.4em; }
+.quick-jobs-collapse summary{ cursor:pointer; font-size:1.15rem; font-weight:700; padding:.6em 0; min-height:44px; display:flex; align-items:center; gap:.4em; list-style:none; }
+.quick-jobs-collapse summary::-webkit-details-marker{ display:none; }
+.quick-jobs-collapse summary::before{ content:"▸"; display:inline-block; transition:transform .15s ease; }
+.quick-jobs-collapse[open] summary::before{ transform:rotate(90deg); }
 .upgrade-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:.8em; }
 .stat-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:.6em; margin:.6em 0; }
 .stat-box{ background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:.5em .7em; }
@@ -171,22 +177,22 @@ table th, table td{ text-align:left; padding:.35em .4em; border-bottom:1px solid
 <body>
 
 <div id="start-screen">
-  <h1>Garage to Production</h1>
-  <p class="subtitle">Build a CNC machine shop, one job at a time.</p>
+  <h1>Making Chips</h1>
+  <p class="subtitle">Build your shop. Prove the process. Keep the spindles turning.</p>
 
   <div class="mill-stage" aria-hidden="true">
     <div id="mill-stage-svg" role="img" aria-label="Animated pixel-art illustration of a desktop CNC mill cutting aluminum"></div>
   </div>
 
   <div class="mode-select" role="group" aria-label="Choose a play mode">
-    <button type="button" data-action="set-start-mode" data-mode="guided" aria-pressed="true">Guided Mode</button>
-    <button type="button" data-action="set-start-mode" data-mode="machinist" aria-pressed="false">Machinist Mode</button>
+    <button type="button" data-action="set-start-mode" data-mode="guided" aria-pressed="true">Clean Hands<br><small>Easy / Guided</small></button>
+    <button type="button" data-action="set-start-mode" data-mode="machinist" aria-pressed="false">Shop Hands<br><small>Experienced Machinist</small></button>
   </div>
-  <p class="mode-desc" id="mode-desc">Guided Mode gives you plain-language presets and helpful tooltips — great if you're new to machining.</p>
+  <p class="mode-desc" id="mode-desc">Visual guidance, helpful hints, forgiving controls, and recommended machining choices.</p>
 
   <div class="start-actions">
-    <button type="button" class="primary" data-action="start-new-game">Start New Garage</button>
-    <button type="button" class="secondary" id="continue-btn" data-action="continue-game" disabled>Continue Saved Shop</button>
+    <button type="button" class="primary" data-action="start-new-game">Start New Shop</button>
+    <button type="button" class="secondary" id="continue-btn" data-action="continue-game" disabled>Continue Shop</button>
   </div>
   <p class="muted" id="continue-hint" style="margin-top:.6em; font-size:.8rem;">No saved shop found yet.</p>
 </div>
@@ -220,9 +226,11 @@ table th, table td{ text-align:left; padding:.35em .4em; border-bottom:1px solid
       <p class="muted">Full manufacturing jobs: review the blueprint, plan the process, program it, prove a first article, then let it run.</p>
       <div class="job-grid" id="blueprint-jobs"></div>
 
-      <h2 class="section-title">Job Board</h2>
-      <p class="muted">Review available work and accept a job to configure setup.</p>
-      <div class="job-grid" id="job-board"></div>
+      <details class="quick-jobs-collapse">
+        <summary class="section-title">Quick Jobs <span class="muted" style="font-weight:400;">(legacy jobs — no blueprint workflow)</span></summary>
+        <p class="muted">Simple jobs: accept, pick a setup, and run production straight away.</p>
+        <div class="job-grid" id="job-board"></div>
+      </details>
     </section>
 
     <section id="tab-production" class="tab-panel" aria-label="Production">
@@ -266,9 +274,10 @@ table th, table td{ text-align:left; padding:.35em .4em; border-bottom:1px solid
       <div class="card">
         <h3>Play Mode</h3>
         <div class="row">
-          <button type="button" data-action="set-mode" data-mode="guided" id="settings-mode-guided">Guided Mode</button>
-          <button type="button" data-action="set-mode" data-mode="machinist" id="settings-mode-machinist">Machinist Mode</button>
+          <button type="button" data-action="set-mode" data-mode="guided" id="settings-mode-guided">Clean Hands <small>(Easy / Guided)</small></button>
+          <button type="button" data-action="set-mode" data-mode="machinist" id="settings-mode-machinist">Shop Hands <small>(Experienced Machinist)</small></button>
         </div>
+        <p class="muted" id="settings-mode-desc" style="font-size:.85rem; margin-top:.5em;"></p>
       </div>
       <div class="card" style="margin-top:.8em;">
         <h3>Save Data</h3>
@@ -305,7 +314,18 @@ table th, table td{ text-align:left; padding:.35em .4em; border-bottom:1px solid
 /* ============================== DATA ============================== */
 
 var SAVE_KEY = 'g2p_save';
-var SAVE_VERSION = 1;
+var SAVE_VERSION = 2;
+
+/* Normalized minigame/process scores (0-1, 0.7 = competent-neutral baseline so old
+   saves and un-played minigames behave like a reasonably-run job, not a broken one). */
+function mfgDefaultScores(){
+  return {
+    stockPlacementScore:0.7, materialEfficiency:0.7, orientationQuality:0.7,
+    featureAssignmentQuality:0.7, traceScore:0.7, operationOrderScore:0.7,
+    alignmentScore:0.7, workZeroQuality:0.7, setupRigidity:0.7,
+    programmingQuality:0.7, inspectionConfidence:0.7
+  };
+}
 
 var MATERIALS = {
   delrin:    { key:'delrin',    label:'Delrin (Acetal)', abbrev:'Del', chipColor:'#ffcc33', hardness:0.4, chipLoadRange:[0.0015,0.006], heatMult:0.6, wearMult:0.5, lubeNeed:'optional', locked:false, highRisk:false },
@@ -794,7 +814,8 @@ function mfgStartPrep(tmplKey){
   var prep = {
     instanceId: uid(), tmplKey: tmplKey, stage: 'blueprint',
     plan: plan, program: mfgDefaultProgram(tmpl),
-    programTimeRemaining: 0, programTotalSeconds: 0
+    programTimeRemaining: 0, programTotalSeconds: 0,
+    scores: mfgDefaultScores()
   };
   state.mfgPrep[tmplKey] = prep;
   scheduleAutosave();
@@ -919,6 +940,7 @@ function mfgSetupOnMachine(tmplKey){
     batchSize: 0, batchRemaining: 0,
     lastInspection: null, correctionLog: [], _correctionBoost: 0,
     economics: { materialCost:0, setupCost:0, scrapCost:0 },
+    scores: (prep.scores ? Object.assign({}, mfgDefaultScores(), prep.scores) : mfgDefaultScores()),
     shipped: false
   };
   delete state.mfgPrep[tmplKey];
@@ -1206,7 +1228,7 @@ function renderBlueprintJobs(){
       (state.mfgPrep[key] ? ('In Prep — ' + mfgStageStatusLabel(stageKey)) : 'New Blueprint');
     var statusCls = onMachine ? 'good' : (state.mfgPrep[key] ? 'warn' : '');
     return '<div class="card job-card">' +
-      '<div class="spread"><h3 style="margin:0;">' + tmpl.part + '</h3><span class="pill ' + statusCls + '">' + statusLabel + '</span></div>' +
+      '<div class="spread"><h3 style="margin:0;">' + tmpl.part + (key==='lBracket' ? ' <span class="pill" style="background:var(--accent); color:#1a1200; border-color:var(--accent);">Featured</span>' : '') + '</h3><span class="pill ' + statusCls + '">' + statusLabel + '</span></div>' +
       '<div class="muted jc-sub">' + tmpl.customer + ' &middot; P/N ' + tmpl.partNumber + '</div>' +
       '<div class="jc-row"><span class="jc-price">' + fmtMoney(tmpl.basePayment) + '</span>' +
         '<span class="jc-deadline">Qty ' + tmpl.qty + '</span></div>' +
@@ -1578,7 +1600,7 @@ function defaultState(){
     activeProduction: null,
     mfgPrep: {},
     mfgActive: null,
-    mfgBoard: ['flatPlate','pocketBlock','lBracket'],
+    mfgBoard: ['lBracket','flatPlate','pocketBlock'],
     mfgLastTickAt: Date.now(),
     stats: {
       jobsCompleted:0, tier2Completed:0, onTimeCount:0, lateCount:0,
@@ -1618,6 +1640,12 @@ function loadGame(){
     if(!Array.isArray(data.mfgBoard)) data.mfgBoard = base.mfgBoard.slice();
     if(data.mfgActive && typeof data.mfgActive !== 'object') data.mfgActive = null;
     if(!isNum(data.mfgLastTickAt)) data.mfgLastTickAt = Date.now();
+    for(var pk in data.mfgPrep){
+      var pr = data.mfgPrep[pk];
+      if(pr && typeof pr === 'object') pr.scores = Object.assign(mfgDefaultScores(), pr.scores||{});
+    }
+    if(data.mfgActive) data.mfgActive.scores = Object.assign(mfgDefaultScores(), data.mfgActive.scores||{});
+    if(data.mode !== 'guided' && data.mode !== 'machinist') data.mode = base.mode;
     return data;
   }catch(e){
     return null;
@@ -1625,6 +1653,15 @@ function loadGame(){
 }
 
 function migrateSave(data){
+  var fromVersion = isNum(data.version) ? data.version : 0;
+  if(fromVersion < 2){
+    /* v1 -> v2: Making Chips rebrand + minigame score fields.
+       Mode ids (guided/machinist) are unchanged, only their display labels
+       changed (Clean Hands / Shop Hands), so no value remapping is needed here.
+       Score defaults for any in-flight mfgPrep/mfgActive jobs are merged in
+       by loadGame() right after this returns. Nothing here can leave a job
+       "stuck" -- every field loadGame() reads has a base-state fallback. */
+  }
   data.version = SAVE_VERSION;
   return data;
 }
@@ -2246,6 +2283,10 @@ function render(){
   if(gm && mm){
     gm.setAttribute('aria-pressed', state.mode==='guided'?'true':'false');
     mm.setAttribute('aria-pressed', state.mode==='machinist'?'true':'false');
+    var smd = document.getElementById('settings-mode-desc');
+    if(smd) smd.textContent = state.mode==='guided' ?
+      'Visual guidance, helpful hints, forgiving controls, and recommended machining choices.' :
+      'More control, fewer hints, detailed machining values, and greater responsibility for the process.';
   }
 }
 
@@ -2375,7 +2416,7 @@ function machinistSetupHtml(jb){
   var toolOptions = ['em18','em14'].map(function(k){
     return '<option value="' + k + '"' + (k===jb.toolKey?' selected':'') + '>' + TOOLS[k].label + '</option>';
   }).join('');
-  return '<div class="modal-header"><h2>Machinist Setup</h2><button class="close-x" data-action="close-modal" aria-label="Close">&times;</button></div>' +
+  return '<div class="modal-header"><h2>Shop Hands Setup</h2><button class="close-x" data-action="close-modal" aria-label="Close">&times;</button></div>' +
     '<p class="muted">' + jb.part + ' &middot; ' + MATERIALS[jb.materialKey].label + '</p>' +
     '<div id="setup-form">' +
       '<label for="su-tool">Tool</label><select id="su-tool">' + toolOptions + '</select>' +
@@ -2867,7 +2908,7 @@ function tutorialSteps(){
       title:'Upgrades',
       body: g ? 'Spend cash here on upgrades and maintenance to unlock bigger, better-paying jobs.' : 'Buy upgrades/maintenance here: tooling, inspection, workholding, coolant, CAM.' },
     { target:'#milestone-btn', tab:'records',
-      title:'Records & Garage Milestone',
+      title:'Records & Shop Milestone',
       body: g ? 'Track your stats here. The Move Out of the Garage button in the header shows your progress toward your next shop.' : 'Stats + job history live here; the header milestone button tracks your move-out requirements.' }
   ];
 }
@@ -2920,8 +2961,8 @@ function setStartMode(m){
   var btns = document.querySelectorAll('.mode-select button');
   btns.forEach(function(b){ b.setAttribute('aria-pressed', b.getAttribute('data-mode')===m ? 'true':'false'); });
   document.getElementById('mode-desc').textContent = m==='guided' ?
-    'Guided Mode gives you plain-language presets, tooltips, and warnings — great if you\'re new to machining.' :
-    'Machinist Mode hands you direct control of RPM, feed, depth of cut, radial engagement, and lubrication with full calculated readouts.';
+    'Visual guidance, helpful hints, forgiving controls, and recommended machining choices.' :
+    'More control, fewer hints, detailed machining values, and greater responsibility for the process.';
 }
 
 function spawnChip(field){
