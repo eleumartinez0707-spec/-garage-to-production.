@@ -184,6 +184,23 @@ body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behav
 
 /* production visual */
 .mill-mini{ width:100%; max-width:340px; height:180px; margin:0 auto; pointer-events:none; position:relative; overflow:hidden; border-radius:8px; border:2px solid #000; image-rendering:pixelated; background:#0d0d0c; }
+/* 4-frame machine cutting loop (frames cropped from the art sheet). Each frame
+   shows for a quarter of the cycle via staggered step animations -- pure CSS. */
+.machine-anim{ position:relative; width:100%; height:100%; }
+.machine-anim img{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); height:96%; image-rendering:auto; opacity:0; }
+.machine-anim img:first-child{ opacity:1; }
+.machine-anim img{ animation:machineFrame 0.72s steps(1,end) infinite; }
+.machine-anim img:nth-child(1){ animation-delay:0s; }
+.machine-anim img:nth-child(2){ animation-delay:0.18s; }
+.machine-anim img:nth-child(3){ animation-delay:0.36s; }
+.machine-anim img:nth-child(4){ animation-delay:0.54s; }
+@keyframes machineFrame{ 0%,24.99%{opacity:1;} 25%,100%{opacity:0;} }
+.machine-anim.paused img{ animation:none; opacity:0; }
+.machine-anim.paused img:nth-child(3){ opacity:1; }
+@media (prefers-reduced-motion: reduce){
+  .machine-anim img{ animation:none !important; opacity:0 !important; }
+  .machine-anim img:nth-child(3){ opacity:1 !important; }
+}
 .op-badge{ display:inline-block; padding:.25em .7em; background:var(--panel2); border-radius:999px; border:1px solid var(--border); }
 .warning-list{ list-style:none; margin:.4em 0; padding:0; }
 .warning-list li{ background:rgba(255,92,92,.12); border:1px solid var(--bad); color:#ffb3b3; padding:.35em .6em; border-radius:6px; margin-bottom:.3em; font-size:.85rem;}
@@ -2236,9 +2253,8 @@ function mfgFirstArticleTabHtml(tmpl, key){
   }
   return mfgSpeedRowHtml() +
     '<div class="mill-mini" id="mfg-mill" style="max-width:280px; margin:.6em auto;" aria-hidden="true">' +
-      '<div id="mfg-mill-svg">' + buildPartVisualSVG(tmpl, 'operation', { stockId: ap.plan.stockId, completedFeatureIds: ap.completedFeatureIds, showTool: true, spinning: !ap.paused }) + '</div>' +
+      machineAnimHtml(!ap.paused) +
       '<div class="chip-layer"></div>' +
-      mfgCoolantOverlayHtml() +
     '</div>' +
     '<div class="bar-track" role="progressbar" aria-valuenow="' + Math.round(frac*100) + '"><div class="bar-fill" id="mfg-progress-fill" style="width:' + (frac*100) + '%"></div></div>' +
     '<p class="muted" id="mfg-progress-text">First article ' + (ap.firstArticleCount+1) + ' of ' + ap.requiredFirstArticles + ' required &middot; ' + fmtTime(Math.max(0,ap.totalSim-ap.elapsedSim)) + ' remaining</p>';
@@ -2295,9 +2311,8 @@ function mfgProductionTabHtml(tmpl, key){
     var frac = clamp(ap.elapsedSim/Math.max(1,ap.totalSim),0,1);
     runningHtml = mfgSpeedRowHtml() +
       '<div class="mill-mini" id="mfg-mill" style="max-width:280px; margin:.6em auto;" aria-hidden="true">' +
-        '<div id="mfg-mill-svg">' + buildPartVisualSVG(tmpl, 'operation', { stockId: ap.plan.stockId, completedFeatureIds: ap.completedFeatureIds, showTool: true, spinning: !ap.paused }) + '</div>' +
+        machineAnimHtml(!ap.paused) +
         '<div class="chip-layer"></div>' +
-        mfgCoolantOverlayHtml() +
       '</div>' +
       '<div class="bar-track"><div class="bar-fill" id="mfg-progress-fill" style="width:' + (frac*100) + '%"></div></div>' +
       '<p class="muted" id="mfg-progress-text">Running batch &mdash; ' + ap.batchRemaining + ' part(s) left in this batch.</p>';
@@ -3604,8 +3619,16 @@ function buildMillHud(opts){
     '<div class="mill-hud-r"><div>' + right + '</div></div>';
 }
 
+/* The looping machine-interior cutting animation, built from the four frames
+   cropped from the art sheet. spinning=false shows the mid-cut frame static. */
+function machineAnimHtml(spinning){
+  return '<div class="machine-anim' + (spinning ? '' : ' paused') + '">' +
+    '<img src="' + SHEET.mframe1 + '" alt=""><img src="' + SHEET.mframe2 + '" alt="">' +
+    '<img src="' + SHEET.mframe3 + '" alt=""><img src="' + SHEET.mframe4 + '" alt=""></div>';
+}
+
 function buildMillWidget(spinning, idSuffix, hudOpts){
-  return '<div class="mill-scene">' + buildMillScene(spinning, idSuffix, hudOpts.materialKey, hudOpts) + '</div>' +
+  return '<div class="mill-scene">' + machineAnimHtml(spinning) + '</div>' +
     buildMillHud(hudOpts) + '<div class="chip-layer"></div>';
 }
 
