@@ -994,7 +994,7 @@ function mfgTickActive(dt){
     if(run <= target) ap.completedFeatureIds[f.id] = true;
   });
 
-  if(!reducedMotion){
+  if(!reducedMotion && !state.upgrades.mistCoolant){
     ap._chipTimer = (ap._chipTimer||0) + dt;
     if(ap._chipTimer >= 0.16){
       ap._chipTimer = 0;
@@ -2019,6 +2019,15 @@ function mfgSpeedRowHtml(){
     }).join('') + '</div>';
 }
 
+function mfgCoolantOverlayHtml(){
+  if(!state.upgrades.mistCoolant) return '';
+  return '<div class="mfg-coolant-overlay" aria-hidden="true">' +
+    '<img src="' + MFG_SPRITES.coolantNozzleOn + '" style="position:absolute; left:8%; top:4%; width:34px; image-rendering:pixelated;">' +
+    '<img src="' + MFG_SPRITES.coolantNozzleOn + '" style="position:absolute; right:8%; top:4%; width:34px; transform:scaleX(-1); image-rendering:pixelated;">' +
+    '<img src="' + MFG_SPRITES.coolantMist1 + '" style="position:absolute; left:50%; top:18%; width:46%; transform:translateX(-50%); opacity:0.85; image-rendering:pixelated;">' +
+  '</div>';
+}
+
 function mfgFirstArticleTabHtml(tmpl, key){
   var ap = state.mfgActive;
   if(!ap || ap.tmplKey !== key) return '<p class="muted">Not running yet.</p>';
@@ -2031,6 +2040,7 @@ function mfgFirstArticleTabHtml(tmpl, key){
     '<div class="mill-mini" id="mfg-mill" style="max-width:280px; margin:.6em auto;" aria-hidden="true">' +
       '<div id="mfg-mill-svg">' + buildPartVisualSVG(tmpl, 'operation', { stockId: ap.plan.stockId, completedFeatureIds: ap.completedFeatureIds }) + '</div>' +
       '<div class="chip-layer"></div>' +
+      mfgCoolantOverlayHtml() +
     '</div>' +
     '<div class="bar-track" role="progressbar" aria-valuenow="' + Math.round(frac*100) + '"><div class="bar-fill" id="mfg-progress-fill" style="width:' + (frac*100) + '%"></div></div>' +
     '<p class="muted" id="mfg-progress-text">First article ' + (ap.firstArticleCount+1) + ' of ' + ap.requiredFirstArticles + ' required &middot; ' + fmtTime(Math.max(0,ap.totalSim-ap.elapsedSim)) + ' remaining</p>';
@@ -2089,6 +2099,7 @@ function mfgProductionTabHtml(tmpl, key){
       '<div class="mill-mini" id="mfg-mill" style="max-width:280px; margin:.6em auto;" aria-hidden="true">' +
         '<div id="mfg-mill-svg">' + buildPartVisualSVG(tmpl, 'operation', { stockId: ap.plan.stockId, completedFeatureIds: ap.completedFeatureIds }) + '</div>' +
         '<div class="chip-layer"></div>' +
+        mfgCoolantOverlayHtml() +
       '</div>' +
       '<div class="bar-track"><div class="bar-fill" id="mfg-progress-fill" style="width:' + (frac*100) + '%"></div></div>' +
       '<p class="muted" id="mfg-progress-text">Running batch &mdash; ' + ap.batchRemaining + ' part(s) left in this batch.</p>';
@@ -2500,7 +2511,8 @@ function productionTick(){
 
     maybeTriggerEvent(frac);
 
-    if(!reducedMotion){
+    var coolantOnNow = ap.setup.lube === 'mist' && !!state.upgrades.mistCoolant;
+    if(!reducedMotion && !coolantOnNow){
       ap._chipTimer = (ap._chipTimer||0) + dt;
       if(ap._chipTimer >= 0.16){
         ap._chipTimer = 0;
@@ -2818,7 +2830,7 @@ function closeModal(){
 
 function render(){
   if(!state) return;
-  try{ window.__debugGame = state; }catch(e){}
+  try{ window.__debugGame = state; window.__debugBuildMillScene = buildMillScene; }catch(e){}
   document.getElementById('stat-cash').textContent = fmtMoney(state.cash);
   document.getElementById('stat-rep').textContent = Math.round(state.reputation);
   document.getElementById('stat-shop').textContent = state.shopLevel;
@@ -3073,6 +3085,24 @@ function statBox(label, value, cls){
 
 /* ============================== PRODUCTION PANEL RENDER ============================== */
 
+/* Small embedded pixel-art sprite set for the machine scene (drill bit,
+   coolant nozzle off/on, coolant mist, toe clamps, vise, tool holder).
+   Base64 PNG data URIs so the game stays a single self-contained file --
+   no separate asset requests, no build step. Native pixel size is small on
+   purpose; image-rendering:pixelated on their <image> usages keeps them
+   crisp when scaled up, matching the rest of the game's retro look. */
+var MFG_SPRITES = {
+  drillBit: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACoAAABsCAYAAAAcwiAqAAABcUlEQVR4nO2bMUoEQRAA78RnGIiI+AAjOVM/oBgY+ACRe4OhYHaIDzD0CaYeRqJgJCIiKAZ+QiOHDk6c5gqkoSpqlt6domd7oGF3OEiyd3D09ROPx4epeyeT8xZfXpwNM/cupFb6RxSlUZRGURpFaRSlUZRGURpFaRSlKSO62JO0sbk9c6C7u39o8fR62uLTk+MWv318tni0NYqPbc98eX5qF29vrmYOfWUqqiiNojRdXR/JdnpP/s7u/p/rlqmoojSK0qS7nur0mN9DmYoqSqMoTbrrqU6P+T2UqaiiNIrSpLue6vSY30OZiipKoyiNcz2NojSK0jjX0yhKoyiNcz2NojSK0jjX0yhKoyiNcz2NojSK0nT9/BS/zVtZXcMl/DbvP1CUpoxo6pfHwYA7AXo6PVKmomVE01sfyb4G2e2OlKmoojSK0ihKU0Z0rgM/8tvhP88hHylT0TKi2NZHlpbX22vw/vqIrFGmoorSKErzDcdXysVFyRb6AAAAAElFTkSuQmCC',
+  coolantNozzleOff: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFoAAABmCAYAAABLEIbUAAAB30lEQVR4nO3cMUoDQRTG8V1JKWKRzk4voJ2gJxA7xRNYptMD2Gtp6REsQ06gkEBQO6tsZ5dCgkU67WZfxCGTXfLtOPv/VZNlN+jHe8MbI8mfet3vrKLj+2le9dm22Wj6B2gLghbp2BdHBztLH3h+/XDrre1y29k977vrxeOpW88+2V6yjIqWIWiRzvJb/C5u3916PJq49a9thO0lo6JlCFokr3Ng6c37f16324Jve/Hdn+o2QkWLELTIQpv6DiCWbXPfPSF875PqNkJFixC0iLc1Q/6OYfnu8V1v2zRCRYsQtMja2zFkkrFSnUaoaBGCFpG2YMgkk+o0QkWLELRIY2236jTi8/ZwyNaBEkGLRNF2IdPIfz+8UNEiBC0SXdvZbSSlwwsVLULQItG12v7lsPL/mcR8eKGiRQhaJLpWs1OHFfIBMVMHCFolulbjwIJaCFokulbjwIJaCFokulYL+dB2WozdevZyU66ZOkDQItG12t3Jpts6rs72VnrWfiGAz7CYu/X14Ev2+1PRIgQtQtAiBC1C0CK1vq9jHRYngUnlCcRqatKwqGgRghYhaBGCFiFokeimDqvOBBLDpGFR0SIELULQIgQtQtAAAAAAAAAAAAAAAAAAAAAAAABAIn4AiMC6uIZPhF8AAAAASUVORK5CYII=',
+  coolantNozzleOn: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFoAAABmCAYAAABLEIbUAAACpklEQVR4nO3cMU9TYRTG8ZY0ToQwwORggkxOupHAJyAOJCizgxNh0w/griNhYmDXgaFxcJakGKJOskgTTZhkIMSBsMD29tBw0rf3hueee/v/TZebW9I+Oe/hvLel7a9bc9etgla2z9pFHztppqp+ApOCoEU69oflZw9HPuDgx2k6npkdtJ2FF910vv/peTq+OKe9tFpUtAxBi3RGX+LbeH+cjo8OT9LxUBuhvbSoaBmCFmmX2bBsXXbvPG/bgtdevOub2kaoaBGCFrm1TL0NiGWXuXdNDu/3NLWNUNEiBC3iLs2c+xiWd413ftKmESpahKBF7n055kwyVlOnESpahKBFpEswZ5Jp6jRCRYsQtEhly27cacTzc3eJ1oEBghYJsexyppG6b16oaBGCFgm37GwbadLmhYoWIWiRcEvt6ete4c+ZRN68UNEiBC0SbqnZqcPKeYOYqQMErRJuqbFhQSkELRJuqbFhQSkELRJuqeW8aXvWP0rHF9/fDY6ZOkDQIuGW2ofV6dQ63qw/Huux9gsBPL3+ZTp++/m/7PVT0SIELULQIgQtQtAipb6v4z7cngROCk8gVlWThkVFixC0CEGLELQIQYuEmzqsMhNIhEnDoqJFCFqEoEUIWoSgRSr/a1zEv6vrkZ/9mH/QDvXaqGgRghYhaBGCFiFokdD3Ojwff1f9DMZHRYsQtEiooT6X3bDYjYl3PgIqWoSgRUItr1w59zrsZLL5pPo2QkWLELQIGxYRKlqEoEUq/2tcBO+wwEXQIrWZOnZ+xb2PkYOKFiFokdCtY23vT2oX9n6FbSPefQx7zZdvf9P5/VeP+B+WJiNokdCtw/Ny0Rw7m5do90OoaBGCFqlN67BThFWXzQsVLULQIrVYdsNyNiyW3fiwYWk4gha5Abvb9tbdi+o/AAAAAElFTkSuQmCC',
+  coolantMist1: 'data:image/png;base64,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',
+  coolantMist2: 'data:image/png;base64,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',
+  toeClampA: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADYAAAAwCAYAAABaHInAAAAA/0lEQVR4nO2ZPQoCMRCFs+JJRKysrD2CiIexsNxyCw8j4hGsrSSFiFfRasMLKK6S5zqP+aoplmQ/Zpj8VaEQ09n83saL5ert94f9LsXn07Eq9R8tg9ID/gsuZg0Xs4aLWUNWbMgYFBffvpDNmKxY8T1aCCFs6m3aN74qS8b+EJHNmKwYpSsio/EkxbfrhT1dQjZjsmL0Uvxl+SGyGZMV865oDVkx74rWkBXLjg543ChFjDHFWJZdrsG70NTrp8cf2YzJimVdEcuGAS7W7LlkM+Zi1nAxa9D3imzw7RvvKmUzJiuWlWJfRwwGshmTFaO+eHwDdrlP8a5oGRezhqzYA0k9Na83fOvpAAAAAElFTkSuQmCC',
+  toeClampB: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADYAAAAwCAYAAABaHInAAAAA/UlEQVR4nO2ZMQrCQBBFN+JJRKysrD2CiIexsEyZwsOIeARrK9lCxKtolWEWDEaYMf7PvGqLkOTxh9mdpEpGzBfLZ7terTcfrz8dD7K+Xs6V1Xu0jKxv+C+EGBohhkaIoUErNva4qd58h4I2MVox8zNaSint6r2cG7vK0uN8qKFNjFbMpStqJtOZrB/3m/fjBNrEaMXcS/GX5aehTYxWLLoiGrRi0RXRoBUrRgc9bliRc5a1Lss+n8H70NTbt+MPbWK0YkVX1GXjgd6svZ9Fm1iIoRFiaBRdUW+guoMhQpsYrVjn2DLUuGEFbWK0YmYTtPffk2+hTSzE0AgxNF4M1jMZzBqivAAAAABJRU5ErkJggg==',
+  vise: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJwAAABmCAYAAAA+sfgyAAAC/klEQVR4nO3dv2sUQRjG8VWCpVWqEBCCiFilSCFCGv+FiIhIQImNhOsCVv5IJaQ7gk1EIYWIaJEijRw2OYLCFRYSQogBIVjEVBapArFQlilu2Vky88y7me+nWo7Nztzew/sye3ubogAAAAAAAAAAAAAAAAAAAABg17nYA/z8dXgSe4wQLo2NBj8XOb/3KudVAwFFQeAgRuAgReAgReAgNRJ7gIXHz2r3WXpRv09TM7fuBj9m7Dl8/PA2+Bx8zr8SFQ5SBA5S0Vuqj7X1XtTjz95/MPT11Tevo47bdA6xz4MFVDhIEThImWipsSlbp+U5WECFgxSBg1QWLbUtq9QcUOEgReAglUVLtdC2LMzBAiocpAgcpLJoqT4rRPcHL+4tPe6tU01fd29PYpX6DxUOUgQOUlm0VAtty8IcLKDCQYrAQSqLlmphhWhhDhZQ4SBF4CCVRUu10LYszMECKhykCBykoj+I7vbsfJKH8u3t7pTbPivEqn1Ow+f47j4Tl68En4OP96vLQ3PQXXnX6LPrPLxTmycqHKQIHKRYpf7X3+gnn0PbVbVgt9VS4SBF4CAVrKXOrfweWk7/bDwPNQQiqfrs+h6fnXs1oIrbaqlwkCJwkIq+Sr04/TT2EENNTicZ1twcYnMvVlddQC6KgpaKNAgcpIK11MHXH6EOBSNCfbM72PzEhV+kQeAg1crvUke2npTbx9cWE84krdjnYefCvXL726vrQW5lo8JBisBBqpUtNec26mrjeaDCQYrAQYrAQYrAQYrAQSrYKvVwbxDqUDjDqHCQInCQInCQInCQInCQ8rrlZHLuS+1TdFilnm2jE1O1+1TdwuT+lx8qHKQIHKSCXfj1KbnIh/t4h7X1Xvk6FQ5SBA5SXqvU8ZvLSZ7Ta8GN8e1G+2/uX400E/v2P8/zjF/YQuAg1cof0aTS6Twqt7vdlwln0l5UOEgROEjRUhugjZ4eFQ5SBA5SXi316OB77HmY1Tto+hf5nisfVDhIEThIEThIEThIEThI/QWV4LFBqGK50QAAAABJRU5ErkJggg==',
+  toolHolder: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAABgCAYAAABBsBH+AAABoklEQVR4nO2cIUtDURiGnfgjRGQYxbwkRrEsGDSI3Wq0WFYsRqswYWnVYBGTXpaGgkEWp4xh8D+4tMMJ98rkfN/Z9r7vkw6Xy+55eD8u387OWW0lI5/jn9/p+P7hqfSe87OTmuccVj0/fBGRMDoSRkfC6NAJr83rwYfN/TA+Oj7N9ly6hOmE3Us67p9jqnrpxu5BuL/fezTvq+kSljA6EkZHwujQCbssmP232Yjp3LVLr1s1IXQJ0wmblXRKGVfhUd50CUsYHQmjI2F06ISTGg+PZqMKqyaELmE64cpy2NzaDuV6cdnKMhlLrq9aYTwaDoInXcJ0wjP91FK8FN7zyAZdwhJGR8LozPSW7j3b98bzgi5hCaMjYXSSVjyK/kfpikdO9ho7WvH4CzrhpJ14r2/vVvPIBl3CEkZHwugkvaWXcXGPLmEJoyNhdMx24t3cdrN9VUw5RU6XMJ2w2UGtZWlC6BKWMDoSRkfC6NAJuxzUinfxWRHvpkuBLmE6YZc/PVjfqIfx9/jL5PpoODCZG13CEkZHwuio8UCHTlgIIcQiMwGB1F/vZ+7UdQAAAABJRU5ErkJggg==',
+};
+
 /* Workpiece color per material: derive a full shaded palette from one base
    tone per material so the block visibly changes color with what's being cut. */
 var MATERIAL_BASE_COLOR = { aluminum:'#aeb8c4', delrin:'#ddd6bf', brass:'#c9a13f', mildsteel:'#5f6879' };
@@ -3093,11 +3123,13 @@ function materialBlockPalette(materialKey){
   };
 }
 
-/* Close-up pixel-art cutting shot: a spiral-fluted end mill plunging into a
-   stepped block against a dark vignette, no room/background chrome -- just
-   the tool, the material, and flying chips. idSuffix keeps <defs> ids unique
-   when multiple copies exist in the DOM at once (start screen + production). */
-function buildMillScene(spinning, idSuffix, materialKey){
+/* Close-up pixel-art cutting shot: a spiral-fluted end mill (or, for drilling
+   steps, the twist-drill sprite) plunging into a stepped block held in a vise
+   or under toe clamps, against a dark vignette. idSuffix keeps <defs> ids
+   unique when multiple copies exist in the DOM at once. sceneOpts:
+   { toolShape: 'endmill'|'drill', workholding: 'vise'|'clamps', coolantOn: bool } */
+function buildMillScene(spinning, idSuffix, materialKey, sceneOpts){
+  var opts = Object.assign({ toolShape:'endmill', workholding:'vise', coolantOn:false }, sceneOpts||{});
   var spin = spinning && !reducedMotion;
   var fluteId = 'flutes-' + idSuffix;
   var shadeId = 'toolshade-' + idSuffix;
@@ -3105,6 +3137,43 @@ function buildMillScene(spinning, idSuffix, materialKey){
   var pal = materialBlockPalette(materialKey);
   var spiral = spin ?
     '<animateTransform attributeName="patternTransform" type="translate" calcMode="discrete" values="0 0;0 3;0 6;0 9" dur="0.3s" repeatCount="indefinite"/>' : '';
+
+  var pixelated = ' style="image-rendering:pixelated;"';
+
+  var toolHtml;
+  if(opts.toolShape === 'drill'){
+    toolHtml = '<image href="' + MFG_SPRITES.drillBit + '" x="93" y="47" width="14" height="46"' + pixelated + '/>';
+  } else {
+    toolHtml =
+      '<rect x="95" y="49" width="10" height="26" fill="url(#' + shadeId + ')"/>' +
+      '<rect x="95" y="49" width="10" height="26" fill="url(#' + fluteId + ')"/>' +
+      '<rect x="95" y="75" width="10" height="16" fill="url(#' + shadeId + ')"/>' +
+      '<rect x="95" y="75" width="10" height="16" fill="url(#' + fluteId + ')"/>';
+  }
+
+  var holdingHtml;
+  if(opts.workholding === 'clamps'){
+    holdingHtml =
+      '<rect x="70" y="106" width="106" height="16" fill="#2a2f38"/>' +
+      '<rect x="70" y="106" width="106" height="4" fill="#3a4048"/>' +
+      '<image href="' + MFG_SPRITES.toeClampA + '" x="80" y="98" width="20" height="18"' + pixelated + '/>' +
+      '<image href="' + MFG_SPRITES.toeClampB + '" x="152" y="98" width="20" height="18"' + pixelated + '/>';
+  } else {
+    holdingHtml = '<image href="' + MFG_SPRITES.vise + '" x="65" y="86" width="112" height="44"' + pixelated + '/>';
+  }
+
+  var coolantHtml = '';
+  if(opts.coolantOn){
+    coolantHtml =
+      '<image href="' + MFG_SPRITES.coolantNozzleOn + '" x="60" y="46" width="26" height="30"' + pixelated + '/>' +
+      '<image href="' + MFG_SPRITES.coolantNozzleOn + '" x="118" y="46" width="26" height="30" transform="scale(-1,1) translate(-262,0)"' + pixelated + '/>' +
+      '<image href="' + MFG_SPRITES.coolantMist1 + '" x="82" y="66" width="46" height="32" opacity="0.92"' + pixelated + '/>';
+  } else {
+    coolantHtml =
+      '<image href="' + MFG_SPRITES.coolantNozzleOff + '" x="60" y="46" width="26" height="30"' + pixelated + '/>' +
+      '<image href="' + MFG_SPRITES.coolantNozzleOff + '" x="118" y="46" width="26" height="30" transform="scale(-1,1) translate(-262,0)"' + pixelated + '/>';
+  }
+
   return '<svg viewBox="0 0 200 150" shape-rendering="crispEdges" preserveAspectRatio="xMidYMid meet">' +
     '<defs>' +
       '<linearGradient id="' + shadeId + '" x1="0" y1="0" x2="1" y2="0">' +
@@ -3123,17 +3192,12 @@ function buildMillScene(spinning, idSuffix, materialKey){
     '<rect x="82" y="4" width="36" height="18" fill="#5f6879"/>' +
     '<rect x="82" y="4" width="36" height="5" fill="#8a929e"/>' +
     '<rect x="90" y="22" width="20" height="18" fill="#4a5468"/>' +
+    '<image href="' + MFG_SPRITES.toolHolder + '" x="88" y="36" width="24" height="16"' + pixelated + '/>' +
     '<rect x="93" y="40" width="14" height="9" fill="#23262d"/>' +
 
-    '<rect x="95" y="49" width="10" height="26" fill="url(#' + shadeId + ')"/>' +
-    '<rect x="95" y="49" width="10" height="26" fill="url(#' + fluteId + ')"/>' +
+    toolHtml +
 
-    '<rect x="95" y="75" width="10" height="16" fill="url(#' + shadeId + ')"/>' +
-    '<rect x="95" y="75" width="10" height="16" fill="url(#' + fluteId + ')"/>' +
-
-    '<rect x="30" y="96" width="66" height="6" fill="' + pal.shelfTop + '"/>' +
-    '<rect x="30" y="102" width="66" height="20" fill="' + pal.shelfFront + '"/>' +
-    '<rect x="96" y="102" width="8" height="20" fill="' + pal.side + '"/>' +
+    holdingHtml +
 
     '<rect x="96" y="78" width="60" height="6" fill="' + pal.top + '"/>' +
     '<rect x="96" y="84" width="60" height="38" fill="' + pal.front + '"/>' +
@@ -3142,6 +3206,8 @@ function buildMillScene(spinning, idSuffix, materialKey){
     '<rect x="108" y="79" width="40" height="1" fill="' + pal.highlightLine + '"/>' +
     '<rect x="108" y="81" width="40" height="1" fill="' + pal.shadowLine + '"/>' +
     '<rect x="94" y="76" width="12" height="6" fill="' + pal.cutNotch + '"/>' +
+
+    coolantHtml +
 
     '<rect x="10" y="130" width="180" height="10" fill="#1c1a16"/>' +
 
@@ -3158,7 +3224,7 @@ function buildMillHud(opts){
 }
 
 function buildMillWidget(spinning, idSuffix, hudOpts){
-  return '<div class="mill-scene">' + buildMillScene(spinning, idSuffix, hudOpts.materialKey) + '</div>' +
+  return '<div class="mill-scene">' + buildMillScene(spinning, idSuffix, hudOpts.materialKey, hudOpts) + '</div>' +
     buildMillHud(hudOpts) + '<div class="chip-layer"></div>';
 }
 
@@ -3199,7 +3265,8 @@ function renderProduction(){
   var jb = ap.job, m = ap.metrics;
   var frac = clamp(ap.elapsedSim/ap.totalSim,0,1);
   var opIdx = Math.floor(((frac*jb.qty) % 1) * jb.ops.length);
-  var currentOp = OP_LABELS[jb.ops[Math.min(jb.ops.length-1,opIdx)]] || jb.ops[0];
+  var currentOpKey = jb.ops[Math.min(jb.ops.length-1,opIdx)];
+  var currentOp = OP_LABELS[currentOpKey] || jb.ops[0];
   var partNum = Math.min(jb.qty, Math.floor(frac*jb.qty)+1);
   var remainingSim = Math.max(0, ap.totalSim - ap.elapsedSim);
   var remainingWall = remainingSim / state.speed;
@@ -3246,15 +3313,20 @@ function renderProduction(){
   var mmEl = document.getElementById('mill-mini-active');
   if(mmEl){
     var wantSpin = (ap.phase==='running' && !ap.paused) ? '1' : '0';
-    if(active.dataset.spin !== wantSpin){
+    var wantToolShape = currentOpKey === 'drill' ? 'drill' : 'endmill';
+    if(active.dataset.spin !== wantSpin || active.dataset.toolShape !== wantToolShape){
       var activeHud = {
         material: MATERIALS[jb.materialKey].label,
         materialKey: jb.materialKey,
         rpm: ap.setup.rpm,
-        feed: ap.setup.feedIPM
+        feed: ap.setup.feedIPM,
+        toolShape: wantToolShape,
+        workholding: 'vise',
+        coolantOn: ap.setup.lube === 'mist' && !!state.upgrades.mistCoolant
       };
       mmEl.innerHTML = buildMillWidget(wantSpin==='1', 'mini', activeHud);
       active.dataset.spin = wantSpin;
+      active.dataset.toolShape = wantToolShape;
     }
   }
 }
