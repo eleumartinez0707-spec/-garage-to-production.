@@ -69,8 +69,18 @@ label{ display:block; margin:.5em 0 .2em; font-size:.9rem; color:var(--text-dim)
 }
 #start-screen h1{ font-size:2.1rem; letter-spacing:.5px; margin-bottom:.1em;}
 #start-screen .subtitle{ color:var(--text-dim); margin-bottom:1em; }
-.mill-stage{ width:min(92vw,420px); height:260px; position:relative; margin:0 auto 1em; pointer-events:none; image-rendering:pixelated; }
-.mill-stage svg{ width:100%; height:100%; display:block; }
+.mill-stage{ width:min(92vw,420px); height:260px; position:relative; margin:0 auto 1em; pointer-events:none; image-rendering:pixelated; overflow:hidden; border-radius:8px; border:2px solid #000; }
+.mill-scene{ position:absolute; inset:0; }
+.mill-scene svg{ width:100%; height:100%; display:block; }
+.mill-hud{ position:absolute; top:6px; left:8px; max-width:66%; font-family:'Courier New',monospace; font-size:.62rem; line-height:1.5; color:#9fd18a; text-shadow:0 0 3px rgba(159,209,138,.55); letter-spacing:.5px; text-transform:uppercase; background:rgba(0,0,0,.45); padding:4px 6px; border-radius:3px; }
+.mill-hud div{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mill-statusbar{ position:absolute; left:0; right:0; bottom:0; height:24%; min-height:36px; background:#141310; border-top:2px solid #000; display:flex; align-items:center; padding:0 6px; gap:6px; box-sizing:border-box; }
+.mb-stat{ display:flex; flex-direction:column; align-items:center; line-height:1; }
+.mb-num{ font-family:'Courier New',monospace; font-weight:900; font-size:1.15rem; color:#d43a2f; text-shadow:1px 1px 0 #000; }
+.mb-lbl{ font-family:'Courier New',monospace; font-size:.5rem; color:#8a8478; letter-spacing:.5px; }
+.mb-portrait{ width:28px; height:28px; border:2px solid #000; box-shadow:0 0 0 1px #4a4438; flex-shrink:0; }
+.mb-portrait svg{ display:block; width:100%; height:100%; }
+.mb-weapon{ margin-left:auto; font-family:'Courier New',monospace; font-size:.6rem; color:#c9c2a8; text-align:right; max-width:44%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .chip{ position:absolute; width:5px; height:5px; background:#c9d3de; border-radius:0; opacity:0; pointer-events:none; }
 .chip.chip-b{ background:#8a929e; }
 @keyframes chip-fly{
@@ -134,8 +144,7 @@ table th, table td{ text-align:left; padding:.35em .4em; border-bottom:1px solid
 .close-x{ background:transparent; border:none; font-size:1.4rem; padding:.2em .5em; min-width:44px; }
 
 /* production visual */
-.mill-mini{ width:100%; max-width:340px; height:180px; margin:0 auto; pointer-events:none; }
-.mill-mini svg{ width:100%; height:100%; }
+.mill-mini{ width:100%; max-width:340px; height:180px; margin:0 auto; pointer-events:none; position:relative; overflow:hidden; border-radius:8px; border:2px solid #000; image-rendering:pixelated; }
 .op-badge{ display:inline-block; padding:.25em .7em; background:var(--panel2); border-radius:999px; border:1px solid var(--border); }
 .warning-list{ list-style:none; margin:.4em 0; padding:0; }
 .warning-list li{ background:rgba(255,92,92,.12); border:1px solid var(--bad); color:#ffb3b3; padding:.35em .6em; border-radius:6px; margin-bottom:.3em; font-size:.85rem;}
@@ -306,10 +315,10 @@ var MATERIALS = {
 };
 
 var TOOLS = {
-  em18:    { key:'em18',    label:'1/8" Carbide End Mill (2-flute)', diameter:0.125, flutes:2, rigidity:0.55, rpmRange:[6000,10000], feedRangeIPM:[4,14],  price:22 },
-  em14:    { key:'em14',    label:'1/4" Carbide End Mill (3-flute)', diameter:0.25,  flutes:3, rigidity:1.0,  rpmRange:[4000,8000],  feedRangeIPM:[8,26],  price:34 },
-  spot:    { key:'spot',    label:'Spot Drill / Drill',              diameter:0.1875,flutes:2, rigidity:0.9,  rpmRange:[2500,6000],  feedRangeIPM:[2,8],   price:14 },
-  chamfer: { key:'chamfer', label:'Chamfer / Deburr Tool',           diameter:0.25,  flutes:2, rigidity:0.9,  rpmRange:[3000,6000],  feedRangeIPM:[3,10],  price:16 }
+  em18:    { key:'em18',    label:'1/8" Carbide End Mill (2-flute)', shortLabel:'1/8" End Mill', diameter:0.125, flutes:2, rigidity:0.55, rpmRange:[6000,10000], feedRangeIPM:[4,14],  price:22 },
+  em14:    { key:'em14',    label:'1/4" Carbide End Mill (3-flute)', shortLabel:'1/4" End Mill', diameter:0.25,  flutes:3, rigidity:1.0,  rpmRange:[4000,8000],  feedRangeIPM:[8,26],  price:34 },
+  spot:    { key:'spot',    label:'Spot Drill / Drill',              shortLabel:'Spot Drill',    diameter:0.1875,flutes:2, rigidity:0.9,  rpmRange:[2500,6000],  feedRangeIPM:[2,8],   price:14 },
+  chamfer: { key:'chamfer', label:'Chamfer / Deburr Tool',           shortLabel:'Chamfer Tool',  diameter:0.25,  flutes:2, rigidity:0.9,  rpmRange:[3000,6000],  feedRangeIPM:[3,10],  price:16 }
 };
 
 var OP_LABELS = { face:'Facing', pocket:'Pocketing', contour:'Contouring', drill:'Drilling', chamfer:'Chamfering / Deburring' };
@@ -1317,51 +1326,115 @@ function statBox(label, value, cls){
 
 /* ============================== PRODUCTION PANEL RENDER ============================== */
 
-/* Retro low-poly pixel-art mill: blocky vise + workpiece + spindle plunging a fluted
-   end mill into the material, styled like an old Build-engine/Quake-era sprite.
-   idSuffix keeps <pattern> ids unique when multiple copies exist in the DOM at once. */
-function buildMillSvg(spinning, idSuffix, showLabel){
+/* First-person industrial-viewport pixel-art mill scene, styled after a
+   Doom-era HUD screenshot: textured walls/floor/ceiling, hanging lights,
+   a row of embedded accent lights, and a spindle plunging a fluted end
+   mill into a workpiece dead-center. idSuffix keeps <defs> ids unique
+   when multiple copies exist in the DOM at once (start screen + production). */
+function buildMillScene(spinning, idSuffix){
   var spin = spinning && !reducedMotion;
   var fluteId = 'flutes-' + idSuffix;
+  var wallId = 'wallDither-' + idSuffix;
+  var floorId = 'floorDither-' + idSuffix;
+  var vigId = 'vignette-' + idSuffix;
   var stripes = spin ?
     '<animateTransform attributeName="patternTransform" type="translate" calcMode="discrete" values="0 0;0 2;0 4;0 6" dur="0.28s" repeatCount="indefinite"/>' : '';
-  return '<svg viewBox="0 0 160 120" shape-rendering="crispEdges" preserveAspectRatio="xMidYMid meet">' +
+  return '<svg viewBox="0 0 200 150" shape-rendering="crispEdges" preserveAspectRatio="xMidYMid slice">' +
     '<defs>' +
       '<pattern id="' + fluteId + '" patternUnits="userSpaceOnUse" width="8" height="8">' +
-        '<rect width="8" height="8" fill="#b7c1cd"/>' +
-        '<rect x="0" y="0" width="4" height="8" fill="#23262d"/>' +
-        stripes +
+        '<rect width="8" height="8" fill="#b7c1cd"/><rect x="0" y="0" width="4" height="8" fill="#23262d"/>' + stripes +
       '</pattern>' +
+      '<pattern id="' + wallId + '" patternUnits="userSpaceOnUse" width="2" height="2">' +
+        '<rect width="2" height="2" fill="#302c24"/><rect width="1" height="1" fill="#3a362c"/><rect x="1" y="1" width="1" height="1" fill="#3a362c"/>' +
+      '</pattern>' +
+      '<pattern id="' + floorId + '" patternUnits="userSpaceOnUse" width="2" height="2">' +
+        '<rect width="2" height="2" fill="#201d18"/><rect width="1" height="1" fill="#262319"/><rect x="1" y="1" width="1" height="1" fill="#262319"/>' +
+      '</pattern>' +
+      '<radialGradient id="' + vigId + '" cx="50%" cy="42%" r="75%">' +
+        '<stop offset="55%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#000" stop-opacity="0.55"/>' +
+      '</radialGradient>' +
     '</defs>' +
-    '<rect x="0" y="0" width="160" height="120" fill="#1a1f27"/>' +
-    '<rect x="2" y="2" width="156" height="116" fill="none" stroke="#0d0f13" stroke-width="2"/>' +
-    '<rect x="10" y="106" width="140" height="4" fill="#0d0f13"/>' +
 
-    '<rect x="64" y="4" width="32" height="16" fill="#5f6879"/>' +
-    '<rect x="64" y="4" width="32" height="4" fill="#8a929e"/>' +
-    '<rect x="68" y="8" width="4" height="4" fill="#ff9d2f"/>' +
-    '<rect x="72" y="20" width="16" height="16" fill="#4a5468"/>' +
-    '<rect x="74" y="36" width="12" height="8" fill="#23262d"/>' +
-    '<rect x="76" y="44" width="8" height="12" fill="#d8e0e8"/>' +
-    '<rect x="80" y="44" width="4" height="12" fill="#aeb8c4"/>' +
-    '<rect x="76" y="56" width="8" height="14" fill="url(#' + fluteId + ')"/>' +
+    '<rect x="0" y="0" width="200" height="150" fill="#141310"/>' +
+    '<rect x="0" y="0" width="200" height="26" fill="#141310"/>' +
+    '<rect x="38" y="18" width="26" height="5" fill="#e8dcb0"/>' +
+    '<rect x="136" y="18" width="26" height="5" fill="#e8dcb0"/>' +
 
-    '<rect x="20" y="96" width="120" height="10" fill="#2a3140"/>' +
-    '<rect x="32" y="76" width="20" height="22" fill="#3a4252"/>' +
-    '<rect x="32" y="76" width="20" height="4" fill="#4a5468"/>' +
-    '<rect x="108" y="76" width="20" height="22" fill="#3a4252"/>' +
-    '<rect x="108" y="76" width="20" height="4" fill="#4a5468"/>' +
+    '<rect x="0" y="26" width="56" height="124" fill="url(#' + wallId + ')"/>' +
+    '<rect x="144" y="26" width="56" height="124" fill="url(#' + wallId + ')"/>' +
+    '<rect x="18" y="26" width="2" height="124" fill="#201d18"/>' +
+    '<rect x="36" y="26" width="2" height="124" fill="#201d18"/>' +
+    '<rect x="162" y="26" width="2" height="124" fill="#201d18"/>' +
+    '<rect x="180" y="26" width="2" height="124" fill="#201d18"/>' +
 
-    '<rect x="52" y="70" width="56" height="22" fill="#aeb8c4"/>' +
-    '<rect x="100" y="70" width="8" height="22" fill="#7d8794"/>' +
-    '<rect x="52" y="64" width="56" height="6" fill="#dfe6ec"/>' +
-    '<rect x="76" y="64" width="8" height="6" fill="#6d7484"/>' +
+    '<rect x="6" y="66" width="7" height="5" fill="#201a12"/><rect x="7" y="67" width="5" height="3" fill="#ff9d2f"/>' +
+    '<rect x="6" y="78" width="7" height="5" fill="#201a12"/><rect x="7" y="79" width="5" height="3" fill="#ff9d2f"/>' +
+    '<rect x="6" y="90" width="7" height="5" fill="#201a12"/><rect x="7" y="91" width="5" height="3" fill="#ff9d2f"/>' +
+    '<rect x="187" y="66" width="7" height="5" fill="#201a12"/><rect x="188" y="67" width="5" height="3" fill="#ff9d2f"/>' +
+    '<rect x="187" y="78" width="7" height="5" fill="#201a12"/><rect x="188" y="79" width="5" height="3" fill="#ff9d2f"/>' +
 
-    (showLabel ? '<text x="80" y="118" text-anchor="middle" fill="#8a929e" font-size="8" font-family="monospace" letter-spacing="1">MicroMill D1</text>' : '') +
+    '<rect x="0" y="112" width="200" height="38" fill="url(#' + floorId + ')"/>' +
+    '<rect x="0" y="120" width="200" height="1" fill="#3a362c"/>' +
+    '<rect x="0" y="132" width="200" height="1" fill="#302c24"/>' +
+    '<rect x="0" y="142" width="200" height="1" fill="#3a362c"/>' +
+
+    '<rect x="76" y="26" width="48" height="22" fill="#5f6879"/>' +
+    '<rect x="76" y="26" width="48" height="5" fill="#8a929e"/>' +
+    '<rect x="82" y="32" width="5" height="5" fill="#ff9d2f"/>' +
+    '<rect x="88" y="48" width="24" height="20" fill="#4a5468"/>' +
+    '<rect x="91" y="68" width="18" height="10" fill="#23262d"/>' +
+    '<rect x="94" y="78" width="12" height="16" fill="#d8e0e8"/>' +
+    '<rect x="100" y="78" width="6" height="16" fill="#aeb8c4"/>' +
+    '<rect x="94" y="94" width="12" height="18" fill="url(#' + fluteId + ')"/>' +
+
+    '<rect x="60" y="126" width="80" height="14" fill="#3a4252"/>' +
+    '<rect x="70" y="96" width="60" height="30" fill="#aeb8c4"/>' +
+    '<rect x="122" y="96" width="8" height="30" fill="#7d8794"/>' +
+    '<rect x="70" y="90" width="60" height="6" fill="#dfe6ec"/>' +
+    '<rect x="78" y="91" width="44" height="1" fill="#c3ccd4"/>' +
+    '<rect x="78" y="93" width="44" height="1" fill="#8f99a5"/>' +
+    '<rect x="94" y="90" width="12" height="6" fill="#6d7484"/>' +
+
+    '<rect x="0" y="0" width="200" height="150" fill="url(#' + vigId + ')"/>' +
     '</svg>';
 }
+
+function buildMillHud(opts){
+  var line1 = opts.material ? ('CUTTING ' + opts.material.toUpperCase()) : 'MICROMILL D1 &mdash; STANDBY';
+  var line2 = 'TOOL: ' + (opts.tool || '--');
+  var line3 = 'RPM: ' + (opts.rpm != null ? opts.rpm : '--');
+  var line4 = 'FEED: ' + (opts.feed != null ? opts.feed + ' IPM' : '--');
+  var portrait = '<svg viewBox="0 0 20 20" shape-rendering="crispEdges">' +
+    '<rect width="20" height="20" fill="#3a4252"/>' +
+    '<rect x="4" y="3" width="12" height="11" fill="#c98a55"/>' +
+    '<rect x="2" y="2" width="16" height="5" fill="#5f6879"/>' +
+    '<rect x="6" y="9" width="3" height="2" fill="#23262d"/>' +
+    '<rect x="11" y="9" width="3" height="2" fill="#23262d"/>' +
+    '<rect x="6" y="13" width="8" height="2" fill="#8a5a3a"/>' +
+  '</svg>';
+  return '<div class="mill-hud"><div>' + line1 + '</div><div>' + line2 + '</div><div>' + line3 + '</div><div>' + line4 + '</div></div>' +
+    '<div class="mill-statusbar">' +
+      '<div class="mb-stat"><span class="mb-num">' + Math.round(opts.machineCond) + '</span><span class="mb-lbl">MACHINE</span></div>' +
+      '<div class="mb-stat"><span class="mb-num">' + Math.round(opts.toolCond) + '</span><span class="mb-lbl">TOOL</span></div>' +
+      '<div class="mb-portrait" aria-hidden="true">' + portrait + '</div>' +
+      '<div class="mb-weapon">' + (opts.toolLabel || '') + '</div>' +
+    '</div>';
+}
+
+function buildMillWidget(spinning, idSuffix, hudOpts){
+  return '<div class="mill-scene">' + buildMillScene(spinning, idSuffix) + '</div>' + buildMillHud(hudOpts);
+}
+
+function idleHudOpts(){
+  var tool = TOOLS[state.toolKey];
+  return {
+    material: null, tool: tool.shortLabel, rpm: null, feed: null,
+    machineCond: state.machine.condition, toolCond: state.tools[state.toolKey].condition,
+    toolLabel: tool.label
+  };
+}
 function millSvg(spinning){
-  return buildMillSvg(spinning, 'mini', false);
+  return buildMillWidget(spinning, 'mini', idleHudOpts());
 }
 
 function renderProduction(){
@@ -1373,7 +1446,7 @@ function renderProduction(){
     idle.classList.remove('hidden');
     active.classList.add('hidden');
     var mm = document.getElementById('mill-mini-idle');
-    if(mm && !mm.dataset.built){ mm.innerHTML = millSvg(false); mm.dataset.built='1'; }
+    if(mm) mm.innerHTML = millSvg(false);
     return;
   }
   idle.classList.add('hidden');
@@ -1419,7 +1492,18 @@ function renderProduction(){
 
   active.innerHTML = html;
   var mmEl = document.getElementById('mill-mini-active');
-  if(mmEl) mmEl.innerHTML = millSvg(ap.phase==='running' && !ap.paused);
+  if(mmEl){
+    var activeHud = {
+      material: MATERIALS[jb.materialKey].label,
+      tool: TOOLS[ap.setup.toolKey].shortLabel,
+      rpm: ap.setup.rpm,
+      feed: ap.setup.feedIPM,
+      machineCond: state.machine.condition,
+      toolCond: toolCond,
+      toolLabel: TOOLS[ap.setup.toolKey].label
+    };
+    mmEl.innerHTML = buildMillWidget(ap.phase==='running' && !ap.paused, 'mini', activeHud);
+  }
 }
 
 function eventHtml(ev){
@@ -1696,7 +1780,7 @@ function spawnChip(field){
   var chip = document.createElement('div');
   chip.className = 'chip' + (Math.random()<0.5 ? ' chip-b' : '');
   chip.style.left = '50%';
-  chip.style.top = '55%';
+  chip.style.top = '62%';
   var side = Math.random()<0.5 ? -1 : 1;
   var spreadRad = rnd(15,70) * Math.PI/180;
   var dist = rnd(26,58);
@@ -2000,7 +2084,10 @@ document.addEventListener('keydown', function(e){
 function init(){
   reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   var svgHost = document.getElementById('mill-stage-svg');
-  if(svgHost) svgHost.innerHTML = buildMillSvg(true, 'start', true);
+  if(svgHost) svgHost.innerHTML = buildMillWidget(true, 'start', {
+    material: 'Aluminum', tool: TOOLS.em18.shortLabel, rpm: 8000, feed: 9,
+    machineCond: 75, toolCond: 100, toolLabel: TOOLS.em18.label
+  });
   setStartMode('guided');
   startChipAnimation();
   refreshContinueButton();
