@@ -3258,16 +3258,18 @@ function buildMillScene(spinning, idSuffix, materialKey, sceneOpts){
     holdingHtml = '<image href="' + MFG_SPRITES.vise + '" x="65" y="86" width="112" height="44"' + pixelated + '/>';
   }
 
-  // Two flexible nozzles flank the spindle and angle inward toward the cutting
-  // point; the ON sprite's downward stream then converges on the tool. The
-  // right nozzle is mirrored (scale -1) so its S-curve bends the opposite way.
+  // Two flexible nozzles flank the spindle and aim DOWN-AND-INWARD so their
+  // orange tips (and the ON sprite's downward stream) point at the workpiece
+  // at center (~x=100, y=80), not away from it. The sprite's stream points
+  // straight down, so a negative (counter-clockwise) rotation tilts the left
+  // tip toward the right/center; the right nozzle is the mirror image.
   var nozzleSprite = opts.coolantOn ? MFG_SPRITES.coolantNozzleOn : MFG_SPRITES.coolantNozzleOff;
-  var nozW = 20, nozH = 48;
-  var leftNoz = '<image href="' + nozzleSprite + '" x="56" y="30" width="' + nozW + '" height="' + nozH + '" transform="rotate(26 74 74)"' + pixelated + '/>';
-  var rightNoz = '<g transform="translate(200,0) scale(-1,1)"><image href="' + nozzleSprite + '" x="56" y="30" width="' + nozW + '" height="' + nozH + '" transform="rotate(26 74 74)"' + pixelated + '/></g>';
+  var nozW = 20, nozH = 46;
+  var leftNoz = '<image href="' + nozzleSprite + '" x="58" y="24" width="' + nozW + '" height="' + nozH + '" transform="rotate(-36 84 66)"' + pixelated + '/>';
+  var rightNoz = '<g transform="translate(200,0) scale(-1,1)"><image href="' + nozzleSprite + '" x="58" y="24" width="' + nozW + '" height="' + nozH + '" transform="rotate(-36 84 66)"' + pixelated + '/></g>';
   var mistHtml = '';
   if(opts.coolantOn){
-    mistHtml = '<image href="' + MFG_SPRITES.coolantMist1 + '" x="80" y="68" width="40" height="28" opacity="0.85"' + pixelated + '/>';
+    mistHtml = '<image href="' + MFG_SPRITES.coolantMist1 + '" x="80" y="70" width="40" height="26" opacity="0.85"' + pixelated + '/>';
   }
   var coolantHtml = leftNoz + rightNoz + mistHtml;
 
