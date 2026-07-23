@@ -106,6 +106,16 @@ main{ flex:1; padding:.8em; padding-bottom:2.5em; max-width:900px; margin:0 auto
 .job-card{ display:flex; flex-direction:column; gap:.35em; }
 .job-card .facts{ display:grid; grid-template-columns:1fr 1fr; gap:.15em .6em; font-size:.82rem; color:var(--text-dim); margin:.3em 0; }
 .job-card .facts b{ color:var(--text); font-weight:600; }
+.jc-sub{ font-size:.82rem; margin-top:-.2em; }
+.jc-row{ display:flex; align-items:center; gap:.6em; }
+.jc-price{ font-size:1.15rem; font-weight:700; }
+.jc-deadline{ font-size:.85rem; color:var(--text-dim); margin-left:auto; }
+.jc-meta{ gap:.5em; }
+.jc-qty{ font-size:.82rem; margin-left:auto; }
+.mat-chip{ display:inline-block; padding:.1em .5em; border-radius:5px; border:1px solid; font-size:.78rem; font-weight:700; }
+.diff-dots{ display:inline-flex; gap:2px; vertical-align:middle; }
+.diff-dot{ width:7px; height:7px; background:var(--bg2); border:1px solid var(--border); display:inline-block; }
+.diff-dot.filled{ background:var(--accent); border-color:var(--accent); }
 .section-title{ margin-top:1.4em; }
 .upgrade-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:.8em; }
 .stat-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:.6em; margin:.6em 0; }
@@ -289,10 +299,10 @@ var SAVE_KEY = 'g2p_save';
 var SAVE_VERSION = 1;
 
 var MATERIALS = {
-  delrin:    { key:'delrin',    label:'Delrin (Acetal)', hardness:0.4, chipLoadRange:[0.0015,0.006], heatMult:0.6, wearMult:0.5, lubeNeed:'optional', locked:false, highRisk:false },
-  aluminum:  { key:'aluminum',  label:'6061 Aluminum',   hardness:1.0, chipLoadRange:[0.0010,0.004], heatMult:1.0, wearMult:1.0, lubeNeed:'recommended', locked:false, highRisk:false },
-  brass:     { key:'brass',     label:'Brass (free-machining)', hardness:0.8, chipLoadRange:[0.0015,0.005], heatMult:0.8, wearMult:0.7, lubeNeed:'optional', locked:false, highRisk:false },
-  mildsteel: { key:'mildsteel', label:'Mild Steel (1018)', hardness:2.6, chipLoadRange:[0.0004,0.0012], heatMult:1.9, wearMult:2.6, lubeNeed:'required', locked:true, highRisk:true }
+  delrin:    { key:'delrin',    label:'Delrin (Acetal)', abbrev:'Del', chipColor:'#ffcc33', hardness:0.4, chipLoadRange:[0.0015,0.006], heatMult:0.6, wearMult:0.5, lubeNeed:'optional', locked:false, highRisk:false },
+  aluminum:  { key:'aluminum',  label:'6061 Aluminum',   abbrev:'Al',  chipColor:'#3fb6ff', hardness:1.0, chipLoadRange:[0.0010,0.004], heatMult:1.0, wearMult:1.0, lubeNeed:'recommended', locked:false, highRisk:false },
+  brass:     { key:'brass',     label:'Brass (free-machining)', abbrev:'Brs', chipColor:'#ff9d2f', hardness:0.8, chipLoadRange:[0.0015,0.005], heatMult:0.8, wearMult:0.7, lubeNeed:'optional', locked:false, highRisk:false },
+  mildsteel: { key:'mildsteel', label:'Mild Steel (1018)', abbrev:'Stl', chipColor:'#ff5c5c', hardness:2.6, chipLoadRange:[0.0004,0.0012], heatMult:1.9, wearMult:2.6, lubeNeed:'required', locked:true, highRisk:true }
 };
 
 var TOOLS = {
@@ -688,6 +698,16 @@ function capabilityFit(jb){
 function materialLockedFor(jb){
   var m = MATERIALS[jb.materialKey];
   return !!(m.locked && !state.upgrades.betterTooling);
+}
+
+function materialChipHtml(materialKey){
+  var m = MATERIALS[materialKey];
+  return '<span class="mat-chip" style="color:' + m.chipColor + '; border-color:' + m.chipColor + '; background:' + m.chipColor + '22;" title="' + m.label + '">' + m.abbrev + '</span>';
+}
+function difficultyDotsHtml(diff){
+  var s = '';
+  for(var i=1;i<=5;i++){ s += '<span class="diff-dot' + (i<=diff?' filled':'') + '"></span>'; }
+  return '<span class="diff-dots" aria-label="Difficulty ' + diff + ' of 5" title="Difficulty ' + diff + '/5">' + s + '</span>';
 }
 
 /* ============================== PRODUCTION ============================== */
@@ -1095,19 +1115,18 @@ function renderJobBoard(){
     var fit = capabilityFit(jb);
     var locked = materialLockedFor(jb);
     return '<div class="card job-card">' +
-      '<div class="spread"><h3 style="margin:0;">' + jb.part + '</h3><span class="pill ' + fit.cls + '">' + fit.label + '</span></div>' +
-      '<div class="muted" style="font-size:.85rem;">' + jb.customer + ' &middot; ' + jb.category + '</div>' +
-      '<div class="facts">' +
-        '<div>Material: <b>' + MATERIALS[jb.materialKey].label + '</b></div>' +
-        '<div>Qty: <b>' + jb.qty + '</b></div>' +
-        '<div>Size: <b>' + jb.size + '</b></div>' +
-        '<div>Tol: <b>&plusmn;' + jb.toleranceIn + '"</b></div>' +
-        '<div>Finish: <b>' + jb.finishLabel + '</b></div>' +
-        '<div>Difficulty: <b>' + jb.difficulty + '/5</b></div>' +
-        (jb.isBid ? '<div>Type: <b>RFQ (bid)</b></div>' : '<div>Deadline: <b>' + fmtTime(jb.deadlineSec) + '</b></div>') +
-        (jb.isBid ? '' : '<div>Pay: <b>' + fmtMoney(jb.payment) + '</b></div>') +
+      '<div class="spread"><h3 style="margin:0;">' + jb.part + '</h3><span class="pill ' + fit.cls + '" title="Capability fit">' + fit.label + '</span></div>' +
+      '<div class="muted jc-sub">' + jb.customer + '</div>' +
+      '<div class="jc-row">' +
+        '<span class="jc-price">' + (jb.isBid ? 'RFQ &middot; Bid' : fmtMoney(jb.payment)) + '</span>' +
+        (jb.isBid ? '' : '<span class="jc-deadline" title="Deadline">&#9201; ' + fmtTime(jb.deadlineSec) + '</span>') +
       '</div>' +
-      (locked ? '<p class="pill bad">Material locked &mdash; requires Better Tooling Package</p>' : '') +
+      '<div class="jc-row jc-meta">' +
+        materialChipHtml(jb.materialKey) +
+        difficultyDotsHtml(jb.difficulty) +
+        '<span class="muted jc-qty" title="Quantity">&times;' + jb.qty + '</span>' +
+      '</div>' +
+      (locked ? '<p class="pill bad">Locked &mdash; needs Better Tooling Package</p>' : '') +
       '<button type="button" data-action="open-job-detail" data-id="' + jb.instanceId + '">Inspect Job</button>' +
     '</div>';
   }).join('');
@@ -1192,10 +1211,10 @@ function guidedSetupHtml(jb){
     '<p class="muted">' + jb.part + ' &middot; ' + MATERIALS[jb.materialKey].label + ' &middot; Tool: ' + toolLabel + '</p>' +
     '<div class="row" id="setup-form" role="group" aria-label="Production preset">' +
       '<button type="button" data-action="pick-preset" data-preset="conservative">Conservative</button>' +
-      '<button type="button" data-action="pick-preset" data-preset="balanced" aria-pressed="true">Balanced (Recommended)</button>' +
+      '<button type="button" data-action="pick-preset" data-preset="balanced" aria-pressed="true">Balanced</button>' +
       '<button type="button" data-action="pick-preset" data-preset="aggressive">Aggressive</button>' +
     '</div>' +
-    '<p class="muted" id="preset-tip" style="font-size:.85rem;">Balanced settings follow the shop\'s recommended feeds and speeds &mdash; a safe, steady choice.</p>' +
+    '<p class="muted" id="preset-tip" style="font-size:.85rem;">Recommended &mdash; safe and steady.</p>' +
     '<div id="setup-preview"></div>' +
     '<button type="button" class="primary" style="width:100%; margin-top:.8em;" data-action="confirm-start-production">Start Production</button>';
 }
@@ -1252,13 +1271,23 @@ function refreshSetupPreview(){
   if(state.mode==='guided'){
     var tipEl = document.getElementById('preset-tip');
     if(tipEl){
-      var tips = {
-        conservative: 'Slower and safer. Lower risk of scrap, longer cycle time.',
-        balanced: 'Balanced settings follow the shop\'s recommended feeds and speeds — a safe, steady choice.',
-        aggressive: 'Faster cycle time, but higher heat, chatter, and tool wear risk.'
-      };
+      var tips = { conservative: 'Slower, safer.', balanced: 'Recommended — safe and steady.', aggressive: 'Faster, riskier.' };
       tipEl.textContent = tips[currentPresetChoice];
     }
+    var compositeRisk = Math.max(m.heatRisk, m.chatterRisk, m.dimensionalRisk);
+    var riskInfo = riskLabel(compositeRisk);
+    var shortWarn = '';
+    if(m.machineLoadPct > 100) shortWarn = 'Heavy cut — higher chance of stalls or damage.';
+    else if(compositeRisk >= 70) shortWarn = 'High risk — expect more scrap.';
+    else if(compositeRisk >= 40) shortWarn = 'Moderate risk.';
+    host.innerHTML =
+      '<div class="stat-grid">' +
+        statBox('Cycle time', fmtTime(m.cycleSeconds)) +
+        statBox('Risk', riskInfo.label, riskInfo.cls) +
+        statBox('Finish', finishLabelFromScore(m.finishScore)) +
+      '</div>' +
+      (shortWarn ? '<ul class="warning-list"><li>' + shortWarn + '</li></ul>' : '');
+    return;
   }
 
   var warnings = [];
