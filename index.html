@@ -1,0 +1,1958 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Garage to Production</title>
+<style>
+:root{
+  --bg:#12151a; --bg2:#1a1f27; --panel:#1e2530; --panel2:#252d3a; --border:#333d4d;
+  --text:#e8ecf2; --text-dim:#a7b0c0; --accent:#ff9d2f; --accent2:#3fb6ff; --good:#3ecf6a;
+  --warn:#ffcc33; --bad:#ff5c5c; --focus:#7fd4ff;
+  --radius:10px;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  min-height:100vh; -webkit-tap-highlight-color:transparent;
+}
+h1,h2,h3,h4{margin:0 0 .4em 0; font-weight:700;}
+p{margin:.3em 0;}
+button{
+  font-family:inherit; font-size:1rem; cursor:pointer; color:var(--text);
+  background:var(--panel2); border:1px solid var(--border); border-radius:8px;
+  padding:.6em 1em; min-height:44px; touch-action:manipulation;
+}
+button:hover{ filter:brightness(1.15); }
+button:active{ filter:brightness(0.9); }
+button:disabled{ opacity:.45; cursor:not-allowed; filter:none; }
+button.primary{ background:var(--accent); color:#1a1200; border-color:var(--accent); font-weight:700; }
+button.primary:hover{ filter:brightness(1.08); }
+button.secondary{ background:var(--accent2); color:#001522; border-color:var(--accent2); font-weight:700; }
+button.danger{ background:var(--bad); color:#2a0000; border-color:var(--bad); font-weight:700; }
+button.ghost{ background:transparent; }
+button.tab-btn{ flex:1 1 0; border-radius:0; border:none; border-bottom:3px solid transparent; background:var(--bg2); min-width:64px;}
+button.tab-btn[aria-selected="true"]{ border-bottom-color:var(--accent); background:var(--panel); color:var(--accent);}
+a, button, input, select, [tabindex]{ }
+:focus-visible{ outline:3px solid var(--focus); outline-offset:2px; }
+input[type=range]{ width:100%; }
+input[type=text], input[type=number], select{
+  background:var(--bg2); color:var(--text); border:1px solid var(--border); border-radius:8px;
+  padding:.5em .6em; font-size:1rem; min-height:44px;
+}
+label{ display:block; margin:.5em 0 .2em; font-size:.9rem; color:var(--text-dim); }
+.visually-hidden{ position:absolute; width:1px;height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+.hidden{ display:none !important; }
+.row{ display:flex; gap:.5em; flex-wrap:wrap; align-items:center; }
+.spread{ display:flex; justify-content:space-between; align-items:center; gap:.5em; flex-wrap:wrap;}
+.card{ background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:1em; }
+.muted{ color:var(--text-dim); }
+.pill{ display:inline-block; padding:.15em .6em; border-radius:999px; font-size:.78rem; border:1px solid var(--border); background:var(--bg2); }
+.pill.good{ color:var(--good); border-color:var(--good); }
+.pill.warn{ color:var(--warn); border-color:var(--warn); }
+.pill.bad{ color:var(--bad); border-color:var(--bad); }
+.bar-track{ background:var(--bg2); border-radius:999px; height:14px; overflow:hidden; border:1px solid var(--border); }
+.bar-fill{ height:100%; background:var(--accent2); transition:width .25s ease; }
+.bar-fill.good{ background:var(--good); }
+.bar-fill.warn{ background:var(--warn); }
+.bar-fill.bad{ background:var(--bad); }
+
+/* ---------- START SCREEN ---------- */
+#start-screen{
+  min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:1.2em; text-align:center; position:relative; overflow:hidden;
+  background:radial-gradient(ellipse at 50% -10%, #2a2116 0%, var(--bg) 60%);
+}
+#start-screen h1{ font-size:2.1rem; letter-spacing:.5px; margin-bottom:.1em;}
+#start-screen .subtitle{ color:var(--text-dim); margin-bottom:1em; }
+.mill-stage{ width:min(92vw,420px); height:260px; position:relative; margin:0 auto 1em; pointer-events:none; }
+.mill-stage svg{ width:100%; height:100%; display:block; }
+.chip{ position:absolute; width:6px; height:4px; background:#c9d3de; border-radius:1px; opacity:0; pointer-events:none; }
+@keyframes spin-cw{ from{ transform:rotate(0deg);} to{ transform:rotate(360deg);} }
+@keyframes chip-fly{
+  0%{ opacity:1; transform:translate(0,0) rotate(0deg) scale(1); }
+  100%{ opacity:0; transform:var(--chip-end) rotate(220deg) scale(.6); }
+}
+.spindle-group{ transform-origin:center; animation:spin-cw .35s linear infinite; }
+.mode-select{ display:flex; gap:.6em; justify-content:center; margin:.6em 0; flex-wrap:wrap; }
+.mode-select button{ min-width:150px; }
+.mode-select button[aria-pressed="true"]{ background:var(--accent); color:#1a1200; border-color:var(--accent);}
+.start-actions{ display:flex; gap:.7em; flex-wrap:wrap; justify-content:center; margin-top:.8em; }
+.start-actions button{ min-width:200px; font-size:1.05rem; }
+#start-screen .mode-desc{ max-width:440px; color:var(--text-dim); font-size:.88rem; min-height:2.4em; }
+
+/* ---------- APP LAYOUT ---------- */
+#app{ display:flex; flex-direction:column; min-height:100vh; }
+#header-bar{
+  position:sticky; top:0; z-index:20; background:var(--bg2); border-bottom:1px solid var(--border);
+  padding:.5em .7em; display:flex; flex-wrap:wrap; gap:.4em .9em; align-items:center;
+}
+#header-bar .stat{ font-size:.85rem; color:var(--text-dim); display:flex; flex-direction:column; line-height:1.15;}
+#header-bar .stat strong{ color:var(--text); font-size:1rem; }
+#speed-controls{ margin-left:auto; display:flex; gap:.3em; }
+#speed-controls button{ min-width:44px; padding:.4em .6em; }
+#speed-controls button[aria-pressed="true"]{ background:var(--accent2); color:#001522; border-color:var(--accent2);}
+#milestone-bar{ width:100%; margin-top:.3em; }
+#milestone-bar button{ width:100%; text-align:left; background:var(--panel); }
+#tabs-bar{ display:flex; position:sticky; top:0; z-index:19; background:var(--bg2); border-bottom:1px solid var(--border);}
+main{ flex:1; padding:.8em; padding-bottom:2.5em; max-width:900px; margin:0 auto; width:100%; }
+.tab-panel{ display:none; }
+.tab-panel.active{ display:block; }
+.job-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:.8em; }
+.job-card{ display:flex; flex-direction:column; gap:.35em; }
+.job-card .facts{ display:grid; grid-template-columns:1fr 1fr; gap:.15em .6em; font-size:.82rem; color:var(--text-dim); margin:.3em 0; }
+.job-card .facts b{ color:var(--text); font-weight:600; }
+.section-title{ margin-top:1.4em; }
+.upgrade-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:.8em; }
+.stat-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:.6em; margin:.6em 0; }
+.stat-box{ background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:.5em .7em; }
+.stat-box .v{ font-size:1.2rem; font-weight:700; }
+.stat-box .l{ font-size:.75rem; color:var(--text-dim); }
+table{ width:100%; border-collapse:collapse; font-size:.85rem; }
+table th, table td{ text-align:left; padding:.35em .4em; border-bottom:1px solid var(--border); }
+
+/* modal */
+.modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:flex-end; justify-content:center; z-index:50; padding:0; }
+@media (min-width:640px){ .modal-backdrop{ align-items:center; padding:1em; } }
+.modal{ background:var(--panel); border:1px solid var(--border); border-radius:var(--radius) var(--radius) 0 0; max-width:640px; width:100%; max-height:92vh; overflow-y:auto; padding:1.1em; }
+@media (min-width:640px){ .modal{ border-radius:var(--radius);} }
+.modal-header{ display:flex; justify-content:space-between; align-items:center; gap:.5em; margin-bottom:.5em; }
+.close-x{ background:transparent; border:none; font-size:1.4rem; padding:.2em .5em; min-width:44px; }
+
+/* production visual */
+.mill-mini{ width:100%; max-width:340px; height:180px; margin:0 auto; pointer-events:none; }
+.mill-mini svg{ width:100%; height:100%; }
+.op-badge{ display:inline-block; padding:.25em .7em; background:var(--panel2); border-radius:999px; border:1px solid var(--border); }
+.warning-list{ list-style:none; margin:.4em 0; padding:0; }
+.warning-list li{ background:rgba(255,92,92,.12); border:1px solid var(--bad); color:#ffb3b3; padding:.35em .6em; border-radius:6px; margin-bottom:.3em; font-size:.85rem;}
+.event-modal .bolt-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:.6em; margin:1em 0; }
+.bolt-btn{ aspect-ratio:1/1; font-size:1.4rem; background:var(--bg2); }
+.bolt-btn.done{ background:var(--good); color:#003; }
+.bolt-btn.wrong{ background:var(--bad); }
+.slider-target-wrap{ position:relative; margin:1em 0; }
+.slider-target-zone{ position:absolute; top:0; height:14px; background:rgba(62,207,106,.35); border:1px solid var(--good); pointer-events:none; border-radius:999px;}
+
+/* tutorial */
+#tutorial-overlay{ position:fixed; inset:0; z-index:80; pointer-events:none; }
+#tutorial-spotlight{ position:absolute; border-radius:10px; box-shadow:0 0 0 4000px rgba(0,0,0,.68); border:2px solid var(--accent); transition:all .25s ease; pointer-events:none; }
+#tutorial-box{ position:fixed; left:50%; bottom:1em; transform:translateX(-50%); width:min(92vw,420px); background:var(--panel); border:1px solid var(--accent); border-radius:var(--radius); padding:1em; pointer-events:auto; z-index:81;}
+#tutorial-box .row{ margin-top:.7em; justify-content:flex-end; }
+
+.toast-region{ position:fixed; bottom:.8em; left:50%; transform:translateX(-50%); z-index:90; display:flex; flex-direction:column; gap:.4em; align-items:center; width:min(92vw,420px); pointer-events:none;}
+.toast{ background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:.5em .9em; font-size:.85rem; box-shadow:0 4px 12px rgba(0,0,0,.4); }
+.toast.good{ border-color:var(--good); }
+.toast.bad{ border-color:var(--bad); }
+
+@media (prefers-reduced-motion: reduce){
+  .spindle-group{ animation:none !important; }
+  .chip{ animation:none !important; display:none !important; }
+  *{ transition-duration:.001ms !important; }
+}
+</style>
+</head>
+<body>
+
+<div id="start-screen">
+  <h1>Garage to Production</h1>
+  <p class="subtitle">Build a CNC machine shop, one job at a time.</p>
+
+  <div class="mill-stage" aria-hidden="true">
+    <svg viewBox="0 0 300 220" role="img" aria-label="Animated illustration of a desktop CNC mill cutting aluminum">
+      <rect x="10" y="10" width="280" height="200" rx="12" fill="#1a1f27" stroke="#333d4d"/>
+      <rect x="40" y="150" width="220" height="26" rx="4" fill="#3a4252" stroke="#4a5468"/>
+      <rect x="95" y="120" width="110" height="34" rx="3" fill="#8a929e" stroke="#5f6879"/>
+      <rect x="95" y="120" width="55" height="34" rx="3" fill="#6d7484"/>
+      <line x1="150" y1="40" x2="150" y2="120" stroke="#4a5468" stroke-width="10" stroke-linecap="round"/>
+      <g class="spindle-group" style="transform-box:fill-box;">
+        <circle cx="150" cy="122" r="9" fill="#c9d3de" stroke="#5f6879" stroke-width="2"/>
+        <line x1="150" y1="113" x2="150" y2="131" stroke="#3a4252" stroke-width="2"/>
+        <line x1="141" y1="122" x2="159" y2="122" stroke="#3a4252" stroke-width="2"/>
+      </g>
+      <rect x="20" y="185" width="260" height="6" fill="#12151a"/>
+      <text x="150" y="205" text-anchor="middle" fill="#a7b0c0" font-size="10" font-family="sans-serif">MicroMill D1</text>
+    </svg>
+    <div id="chip-field" style="position:absolute; left:0; top:0; width:100%; height:100%;"></div>
+  </div>
+
+  <div class="mode-select" role="group" aria-label="Choose a play mode">
+    <button type="button" data-action="set-start-mode" data-mode="guided" aria-pressed="true">Guided Mode</button>
+    <button type="button" data-action="set-start-mode" data-mode="machinist" aria-pressed="false">Machinist Mode</button>
+  </div>
+  <p class="mode-desc" id="mode-desc">Guided Mode gives you plain-language presets and helpful tooltips — great if you're new to machining.</p>
+
+  <div class="start-actions">
+    <button type="button" class="primary" data-action="start-new-game">Start New Garage</button>
+    <button type="button" class="secondary" id="continue-btn" data-action="continue-game" disabled>Continue Saved Shop</button>
+  </div>
+  <p class="muted" id="continue-hint" style="margin-top:.6em; font-size:.8rem;">No saved shop found yet.</p>
+</div>
+
+<div id="app" class="hidden">
+  <div id="header-bar">
+    <div class="stat"><span>Cash</span><strong id="stat-cash">$0</strong></div>
+    <div class="stat"><span>Reputation</span><strong id="stat-rep">0</strong></div>
+    <div class="stat"><span>Shop</span><strong id="stat-shop">Garage</strong></div>
+    <div id="speed-controls" role="group" aria-label="Production speed">
+      <button type="button" data-action="set-speed" data-speed="1" aria-pressed="true">1x</button>
+      <button type="button" data-action="set-speed" data-speed="2" aria-pressed="false">2x</button>
+      <button type="button" data-action="set-speed" data-speed="4" aria-pressed="false">4x</button>
+    </div>
+    <div id="milestone-bar">
+      <button type="button" data-action="open-milestone" id="milestone-btn">Move Out of the Garage: 0/5</button>
+    </div>
+  </div>
+
+  <div id="tabs-bar" role="tablist" aria-label="Main navigation">
+    <button type="button" class="tab-btn" role="tab" data-action="show-tab" data-tab="jobs" aria-selected="true">Jobs</button>
+    <button type="button" class="tab-btn" role="tab" data-action="show-tab" data-tab="production" aria-selected="false">Production</button>
+    <button type="button" class="tab-btn" role="tab" data-action="show-tab" data-tab="upgrades" aria-selected="false">Upgrades</button>
+    <button type="button" class="tab-btn" role="tab" data-action="show-tab" data-tab="records" aria-selected="false">Records</button>
+    <button type="button" class="tab-btn" role="tab" data-action="show-tab" data-tab="settings" aria-selected="false">Settings</button>
+  </div>
+
+  <main>
+    <section id="tab-jobs" class="tab-panel active" aria-label="Job board">
+      <h2>Job Board</h2>
+      <p class="muted">Review available work and accept a job to configure setup.</p>
+      <div class="job-grid" id="job-board"></div>
+    </section>
+
+    <section id="tab-production" class="tab-panel" aria-label="Production">
+      <div id="production-idle" class="card">
+        <h2>MicroMill D1</h2>
+        <div class="mill-mini" aria-hidden="true" id="mill-mini-idle"></div>
+        <p class="muted">No active job. Accept a job from the Jobs tab to begin production.</p>
+      </div>
+      <div id="production-active" class="hidden"></div>
+    </section>
+
+    <section id="tab-upgrades" class="tab-panel" aria-label="Upgrades and maintenance">
+      <h2>Shop &amp; Maintenance</h2>
+      <div class="card" style="margin-bottom:1em;">
+        <h3>Machine &amp; Tooling Status</h3>
+        <div id="maintenance-status" class="stat-grid"></div>
+        <div class="row" style="margin-top:.6em;">
+          <button type="button" class="secondary" data-action="do-maintenance">Perform Maintenance ($<span id="maint-cost">80</span>)</button>
+          <button type="button" data-action="replace-tool" id="replace-tool-btn">Replace Current Tool</button>
+        </div>
+      </div>
+      <h3 class="section-title">Upgrades</h3>
+      <div class="upgrade-grid" id="upgrade-grid"></div>
+    </section>
+
+    <section id="tab-records" class="tab-panel" aria-label="Records">
+      <h2>Shop Records</h2>
+      <div class="stat-grid" id="records-stats"></div>
+      <h3 class="section-title">Material Familiarity</h3>
+      <div class="stat-grid" id="records-familiarity"></div>
+      <h3 class="section-title">Recent Job History</h3>
+      <table>
+        <thead><tr><th>Job</th><th>Result</th><th>Profit</th></tr></thead>
+        <tbody id="records-history"></tbody>
+      </table>
+    </section>
+
+    <section id="tab-settings" class="tab-panel" aria-label="Settings">
+      <h2>Settings</h2>
+      <div class="card">
+        <h3>Play Mode</h3>
+        <div class="row">
+          <button type="button" data-action="set-mode" data-mode="guided" id="settings-mode-guided">Guided Mode</button>
+          <button type="button" data-action="set-mode" data-mode="machinist" id="settings-mode-machinist">Machinist Mode</button>
+        </div>
+      </div>
+      <div class="card" style="margin-top:.8em;">
+        <h3>Save Data</h3>
+        <div class="row">
+          <button type="button" class="secondary" data-action="manual-save">Manual Save</button>
+          <button type="button" data-action="replay-tutorial">Replay Tutorial</button>
+          <button type="button" class="danger" data-action="reset-game">Reset Game</button>
+        </div>
+        <p class="muted" id="save-status" style="margin-top:.5em;"></p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="modal-root"></div>
+<div id="toast-region" class="toast-region" aria-live="polite"></div>
+<div id="tutorial-overlay" class="hidden">
+  <div id="tutorial-spotlight"></div>
+  <div id="tutorial-box" role="dialog" aria-modal="false" aria-labelledby="tut-title">
+    <h3 id="tut-title"></h3>
+    <p id="tut-body"></p>
+    <div class="row">
+      <button type="button" data-action="tut-skip" class="ghost">Skip Tutorial</button>
+      <button type="button" data-action="tut-back" id="tut-back-btn">Back</button>
+      <button type="button" data-action="tut-next" class="primary" id="tut-next-btn">Next</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* ============================== DATA ============================== */
+
+var SAVE_KEY = 'g2p_save';
+var SAVE_VERSION = 1;
+
+var MATERIALS = {
+  delrin:    { key:'delrin',    label:'Delrin (Acetal)', hardness:0.4, chipLoadRange:[0.0015,0.006], heatMult:0.6, wearMult:0.5, lubeNeed:'optional', locked:false, highRisk:false },
+  aluminum:  { key:'aluminum',  label:'6061 Aluminum',   hardness:1.0, chipLoadRange:[0.0010,0.004], heatMult:1.0, wearMult:1.0, lubeNeed:'recommended', locked:false, highRisk:false },
+  brass:     { key:'brass',     label:'Brass (free-machining)', hardness:0.8, chipLoadRange:[0.0015,0.005], heatMult:0.8, wearMult:0.7, lubeNeed:'optional', locked:false, highRisk:false },
+  mildsteel: { key:'mildsteel', label:'Mild Steel (1018)', hardness:2.6, chipLoadRange:[0.0004,0.0012], heatMult:1.9, wearMult:2.6, lubeNeed:'required', locked:true, highRisk:true }
+};
+
+var TOOLS = {
+  em18:    { key:'em18',    label:'1/8" Carbide End Mill (2-flute)', diameter:0.125, flutes:2, rigidity:0.55, rpmRange:[6000,10000], feedRangeIPM:[4,14],  price:22 },
+  em14:    { key:'em14',    label:'1/4" Carbide End Mill (3-flute)', diameter:0.25,  flutes:3, rigidity:1.0,  rpmRange:[4000,8000],  feedRangeIPM:[8,26],  price:34 },
+  spot:    { key:'spot',    label:'Spot Drill / Drill',              diameter:0.1875,flutes:2, rigidity:0.9,  rpmRange:[2500,6000],  feedRangeIPM:[2,8],   price:14 },
+  chamfer: { key:'chamfer', label:'Chamfer / Deburr Tool',           diameter:0.25,  flutes:2, rigidity:0.9,  rpmRange:[3000,6000],  feedRangeIPM:[3,10],  price:16 }
+};
+
+var OP_LABELS = { face:'Facing', pocket:'Pocketing', contour:'Contouring', drill:'Drilling', chamfer:'Chamfering / Deburring' };
+
+function job(def){
+  return Object.assign({
+    isBid:false, minRep:0
+  }, def);
+}
+
+var JOB_TEMPLATES = [
+  job({ id:'t1_tabs', tier:1, customer:'Dana R. (Maker Market)', category:'Maker Market', part:'Aluminum Mounting Tabs', materialKey:'aluminum',
+    qty:20, size:'40 x 20 x 5 mm', toleranceIn:0.006, finishLabel:'Standard mill finish', finishScoreReq:45,
+    deadlineSec:150, payment:190, materialCostPerUnit:2.0, toolWear:1.0, repReward:3, latePenalty:25, rejectionRepPenalty:2,
+    difficulty:1, ops:['face','contour'], toolKey:'em18', baseTotalSeconds:34, minRep:0 }),
+  job({ id:'t1_fixture', tier:1, customer:'Level-Up Robotics Club', category:'Maker Market', part:'Fixture Plate', materialKey:'aluminum',
+    qty:4, size:'150 x 100 x 10 mm', toleranceIn:0.004, finishLabel:'Smooth (good)', finishScoreReq:65,
+    deadlineSec:170, payment:240, materialCostPerUnit:9, toolWear:1.1, repReward:4, latePenalty:30, rejectionRepPenalty:2,
+    difficulty:2, ops:['face','pocket','drill'], toolKey:'em14', baseTotalSeconds:40, minRep:0 }),
+  job({ id:'t1_camera', tier:1, customer:'Studio Rentals Co.', category:'Maker Market', part:'Camera Mounting Bracket', materialKey:'aluminum',
+    qty:10, size:'60 x 40 x 15 mm', toleranceIn:0.003, finishLabel:'Good (visible part)', finishScoreReq:70,
+    deadlineSec:160, payment:270, materialCostPerUnit:5, toolWear:1.2, repReward:5, latePenalty:30, rejectionRepPenalty:3,
+    difficulty:2, ops:['face','contour','drill','chamfer'], toolKey:'em18', baseTotalSeconds:46, minRep:0 }),
+  job({ id:'t1_knobs', tier:1, customer:'HobbyCNC Forum Group Buy', category:'Maker Market', part:'Custom Knob Set', materialKey:'delrin',
+    qty:30, size:'25 mm dia x 15 mm', toleranceIn:0.010, finishLabel:'Standard', finishScoreReq:35,
+    deadlineSec:140, payment:150, materialCostPerUnit:1.2, toolWear:0.7, repReward:2, latePenalty:15, rejectionRepPenalty:1,
+    difficulty:1, ops:['contour','drill'], toolKey:'em18', baseTotalSeconds:28, minRep:0 }),
+  job({ id:'t1_spacers', tier:1, customer:'DrivetrainWorks Robotics', category:'Maker Market', part:'Robot Spacer Set', materialKey:'aluminum',
+    qty:50, size:'10 mm dia x 8 mm', toleranceIn:0.002, finishLabel:'Standard', finishScoreReq:50,
+    deadlineSec:180, payment:310, materialCostPerUnit:1.0, toolWear:1.3, repReward:6, latePenalty:35, rejectionRepPenalty:2,
+    difficulty:3, ops:['contour','drill'], toolKey:'em18', baseTotalSeconds:52, minRep:0 }),
+  job({ id:'t1_delrinpart', tier:1, customer:'Neighbor (Appliance Fix)', category:'Maker Market', part:'Delrin Replacement Part', materialKey:'delrin',
+    qty:1, size:'50 x 30 x 8 mm', toleranceIn:0.008, finishLabel:'Standard', finishScoreReq:35,
+    deadlineSec:100, payment:90, materialCostPerUnit:3, toolWear:0.5, repReward:2, latePenalty:10, rejectionRepPenalty:1,
+    difficulty:1, ops:['contour'], toolKey:'em18', baseTotalSeconds:20, minRep:0 }),
+  job({ id:'t1_adapter', tier:1, customer:'SmallSat Hobbyist', category:'Maker Market', part:'Adapter Plate', materialKey:'aluminum',
+    qty:6, size:'70 x 70 x 8 mm', toleranceIn:0.004, finishLabel:'Good', finishScoreReq:60,
+    deadlineSec:165, payment:245, materialCostPerUnit:6, toolWear:1.1, repReward:5, latePenalty:28, rejectionRepPenalty:2,
+    difficulty:2, ops:['face','pocket','drill','chamfer'], toolKey:'em14', baseTotalSeconds:44, minRep:0 }),
+
+  job({ id:'t2_moto', tier:2, customer:'RedlineCycle Restorations', category:'Local Repair & Prototype', part:'Motorcycle Engine Spacers', materialKey:'aluminum',
+    qty:8, size:'30 mm dia x 12 mm', toleranceIn:0.0015, finishLabel:'Fine', finishScoreReq:75,
+    deadlineSec:190, payment:360, materialCostPerUnit:4, toolWear:1.3, repReward:8, latePenalty:45, rejectionRepPenalty:3,
+    difficulty:3, ops:['contour','drill'], toolKey:'em18', baseTotalSeconds:48, minRep:25 }),
+  job({ id:'t2_pump', tier:2, customer:'Coastal Irrigation Services', category:'Local Repair & Prototype', part:'Pump Mounting Plate', materialKey:'aluminum',
+    qty:2, size:'200 x 150 x 12 mm', toleranceIn:0.003, finishLabel:'Good', finishScoreReq:60,
+    deadlineSec:210, payment:420, materialCostPerUnit:20, toolWear:1.2, repReward:9, latePenalty:55, rejectionRepPenalty:3,
+    difficulty:3, ops:['face','pocket','drill'], toolKey:'em14', baseTotalSeconds:56, minRep:25 }),
+  job({ id:'t2_sensor', tier:2, customer:'UrbanAg Sensors Inc.', category:'Local Repair & Prototype', part:'Sensor Mount Bracket', materialKey:'aluminum',
+    qty:15, size:'45 x 30 x 10 mm', toleranceIn:0.003, finishLabel:'Good', finishScoreReq:60,
+    deadlineSec:185, payment:310, materialCostPerUnit:3.5, toolWear:1.1, repReward:7, latePenalty:35, rejectionRepPenalty:2,
+    difficulty:2, ops:['face','contour','drill'], toolKey:'em18', baseTotalSeconds:50, minRep:25 }),
+  job({ id:'t2_bracket', tier:2, customer:'Family Friend (Trailer Repair)', category:'Local Repair & Prototype', part:'Replacement Bracket', materialKey:'aluminum',
+    qty:3, size:'90 x 50 x 10 mm', toleranceIn:0.005, finishLabel:'Standard', finishScoreReq:45,
+    deadlineSec:150, payment:210, materialCostPerUnit:6, toolWear:1.0, repReward:6, latePenalty:25, rejectionRepPenalty:2,
+    difficulty:2, ops:['face','contour','drill'], toolKey:'em14', baseTotalSeconds:36, minRep:25 }),
+  job({ id:'t2_linkage', tier:2, customer:'Prototype Labs LLC', category:'Local Repair & Prototype', part:'Prototype Linkage Arm', materialKey:'aluminum',
+    qty:5, size:'120 x 20 x 8 mm', toleranceIn:0.003, finishLabel:'Good', finishScoreReq:60,
+    materialCostPerUnit:5, toolWear:1.2, repReward:9, latePenalty:50, rejectionRepPenalty:3,
+    difficulty:3, ops:['contour','drill'], toolKey:'em18', baseTotalSeconds:46, minRep:25,
+    isBid:true, bidBaseline:380, bidDeliveryBaselineSec:200 }),
+
+  job({ id:'t3_locating', tier:3, customer:'Precision Robotics (RFQ #4471)', category:'Online RFQ Board', part:'Locating Blocks', materialKey:'mildsteel',
+    qty:12, size:'25 x 25 x 20 mm', toleranceIn:0.003, finishLabel:'Fine', finishScoreReq:70,
+    materialCostPerUnit:9, toolWear:1.4, repReward:12, latePenalty:70, rejectionRepPenalty:4,
+    difficulty:4, ops:['face','pocket','drill'], toolKey:'em14', baseTotalSeconds:70, minRep:65,
+    isBid:true, bidBaseline:620, bidDeliveryBaselineSec:220 }),
+  job({ id:'t3_enclosure', tier:3, customer:'NimbusIoT (RFQ #2290)', category:'Online RFQ Board', part:'Electronics Enclosure', materialKey:'delrin',
+    qty:6, size:'100 x 80 x 40 mm', toleranceIn:0.004, finishLabel:'Good', finishScoreReq:60,
+    materialCostPerUnit:8, toolWear:1.0, repReward:10, latePenalty:60, rejectionRepPenalty:3,
+    difficulty:3, ops:['face','pocket','drill','chamfer'], toolKey:'em14', baseTotalSeconds:58, minRep:65,
+    isBid:true, bidBaseline:480, bidDeliveryBaselineSec:210 }),
+  job({ id:'t3_robotics', tier:3, customer:'Vantage Robotics (RFQ #1187)', category:'Online RFQ Board', part:'Robotics Mounting Brackets', materialKey:'aluminum',
+    qty:25, size:'55 x 35 x 10 mm', toleranceIn:0.0025, finishLabel:'Good', finishScoreReq:65,
+    deadlineSec:230, payment:650, materialCostPerUnit:4, toolWear:1.2, repReward:13, latePenalty:80, rejectionRepPenalty:3,
+    difficulty:3, ops:['face','contour','drill'], toolKey:'em18', baseTotalSeconds:66, minRep:65 }),
+  job({ id:'t3_inspection', tier:3, customer:'MetroCal Labs (RFQ #3305)', category:'Online RFQ Board', part:'Inspection Fixture Parts', materialKey:'aluminum',
+    qty:8, size:'80 x 60 x 15 mm', toleranceIn:0.0012, finishLabel:'Fine', finishScoreReq:78,
+    deadlineSec:220, payment:590, materialCostPerUnit:7, toolWear:1.4, repReward:14, latePenalty:75, rejectionRepPenalty:4,
+    difficulty:4, ops:['face','pocket','drill','chamfer'], toolKey:'em14', baseTotalSeconds:64, minRep:65 })
+];
+
+var UPGRADES = {
+  maintenanceBench:  { key:'maintenanceBench',  label:'Maintenance Bench',  cost:600,  desc:'Faster, more effective maintenance. Slows condition loss over time.' },
+  betterTooling:      { key:'betterTooling',      label:'Better Tooling Package', cost:900,  desc:'Unlocks mild steel jobs and reduces tool wear by 15%.' },
+  inspectionPackage:  { key:'inspectionPackage',  label:'Inspection Package', cost:750,  desc:'Sharper measurement — more accurate inspection results. Required to move out of the garage.' },
+  workholding:        { key:'workholding',        label:'Workholding Upgrade', cost:500,  desc:'Stiffer vise and fixturing reduces chatter risk and workholding events.' },
+  mistCoolant:        { key:'mistCoolant',        label:'Mist Lubrication / Coolant Upgrade', cost:650, desc:'Unlocks effective mist cooling, cutting heat risk.' },
+  camSoftware:        { key:'camSoftware',        label:'CAM Software Upgrade', cost:1100, desc:'Optimized toolpaths: 10% faster cycles and an auto-recommend setup button.' }
+};
+
+var MILESTONE = { cash:25000, reputation:100, jobsCompleted:10, tier2Completed:2, needsInspectionPackage:true };
+
+/* ============================== UTIL ============================== */
+
+function clamp(v,lo,hi){ return Math.max(lo, Math.min(hi, v)); }
+function rnd(a,b){ return a + Math.random()*(b-a); }
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function uid(){ return 'id' + Date.now().toString(36) + Math.floor(Math.random()*1e6).toString(36); }
+function fmtMoney(n){ var neg = n<0; n=Math.abs(n); var s = '$' + Math.round(n).toLocaleString('en-US'); return neg? '-'+s : s; }
+function fmtTime(sec){
+  sec = Math.max(0, Math.ceil(sec));
+  var m = Math.floor(sec/60), s = sec%60;
+  return m + ':' + (s<10?'0':'') + s;
+}
+function isNum(n){ return typeof n === 'number' && isFinite(n); }
+function safeNum(n, fallback){ return isNum(n) ? n : (fallback||0); }
+
+function safeGet(key){
+  try{ return window.localStorage.getItem(key); }catch(e){ return null; }
+}
+function safeSet(key, val){
+  try{ window.localStorage.setItem(key, val); return true; }catch(e){ return false; }
+}
+function safeRemove(key){
+  try{ window.localStorage.removeItem(key); }catch(e){}
+}
+
+/* GAME_JS_MARKER_PART1_END */
+
+/* ============================== STATE ============================== */
+
+var state = null;
+
+function defaultState(){
+  return {
+    version: SAVE_VERSION,
+    mode: 'guided',
+    cash: 4500,
+    reputation: 0,
+    shopLevel: 'Garage',
+    speed: 1,
+    machine: { condition: 75, cleanliness: 90, chipBuildup: 5, lubrication: 60 },
+    toolKey: 'em18',
+    tools: {
+      em18: { condition: 100, owned:true },
+      em14: { condition: 100, owned:true },
+      spot: { condition: 100, owned:true },
+      chamfer: { condition: 100, owned:true }
+    },
+    upgrades: { maintenanceBench:false, betterTooling:false, inspectionPackage:false, workholding:false, mistCoolant:false, camSoftware:false },
+    board: [],
+    activeProduction: null,
+    stats: {
+      jobsCompleted:0, tier2Completed:0, onTimeCount:0, lateCount:0,
+      totalRevenue:0, totalProfit:0, totalScrapUnits:0, totalUnits:0, bestJobProfit:0,
+      materialJobsCount: { delrin:0, aluminum:0, brass:0, mildsteel:0 }
+    },
+    history: [],
+    tutorial: { completed:false },
+    milestoneShown:false,
+    createdAt: Date.now()
+  };
+}
+
+function loadGame(){
+  var raw = safeGet(SAVE_KEY);
+  if(!raw) return null;
+  try{
+    var data = JSON.parse(raw);
+    if(!data || typeof data !== 'object') return null;
+    if(data.version !== SAVE_VERSION){
+      data = migrateSave(data);
+    }
+    var base = defaultState();
+    data = Object.assign({}, base, data);
+    data.machine = Object.assign({}, base.machine, data.machine||{});
+    data.tools = Object.assign({}, base.tools, data.tools||{});
+    for(var tk in base.tools){ data.tools[tk] = Object.assign({}, base.tools[tk], (data.tools[tk]||{})); }
+    data.upgrades = Object.assign({}, base.upgrades, data.upgrades||{});
+    data.stats = Object.assign({}, base.stats, data.stats||{});
+    data.stats.materialJobsCount = Object.assign({}, base.stats.materialJobsCount, (data.stats.materialJobsCount||{}));
+    data.tutorial = Object.assign({}, base.tutorial, data.tutorial||{});
+    if(!Array.isArray(data.board)) data.board = [];
+    if(!Array.isArray(data.history)) data.history = [];
+    if(!isNum(data.cash)) data.cash = base.cash;
+    if(!isNum(data.reputation)) data.reputation = base.reputation;
+    return data;
+  }catch(e){
+    return null;
+  }
+}
+
+function migrateSave(data){
+  data.version = SAVE_VERSION;
+  return data;
+}
+
+function saveGame(manual){
+  if(!state) return false;
+  state.version = SAVE_VERSION;
+  var ok = false;
+  try{
+    var json = JSON.stringify(state);
+    ok = safeSet(SAVE_KEY, json);
+  }catch(e){ ok = false; }
+  if(manual){
+    var el = document.getElementById('save-status');
+    if(el) el.textContent = ok ? ('Saved at ' + new Date().toLocaleTimeString()) : 'Save failed (storage unavailable). Progress kept in this session only.';
+  }
+  return ok;
+}
+
+var autosaveTimer = null;
+function scheduleAutosave(){
+  if(autosaveTimer) return;
+  autosaveTimer = setTimeout(function(){ autosaveTimer=null; saveGame(false); }, 1500);
+}
+
+/* ============================== MACHINING MODEL ============================== */
+
+function materialFamiliarityTier(materialKey){
+  var n = (state.stats.materialJobsCount[materialKey]||0);
+  if(n>=8) return 3;
+  if(n>=4) return 2;
+  if(n>=1) return 1;
+  return 0;
+}
+
+function recommendedSetup(jb){
+  var tool = TOOLS[jb.toolKey];
+  var rpm = Math.round((tool.rpmRange[0]+tool.rpmRange[1])/2);
+  var feed = (tool.feedRangeIPM[0]+tool.feedRangeIPM[1])/2;
+  var axial = tool.diameter*0.5;
+  var radial = 40;
+  var lube = MATERIALS[jb.materialKey].lubeNeed === 'optional' ? 'dry' : 'mist';
+  return { toolKey: jb.toolKey, rpm:rpm, feedIPM: Math.round(feed*10)/10, axialDoc: Math.round(axial*1000)/1000, radialPct: radial, lube: lube };
+}
+
+function presetSetup(jb, presetName){
+  var rec = recommendedSetup(jb);
+  if(presetName === 'conservative'){
+    return Object.assign({}, rec, { feedIPM: round2(rec.feedIPM*0.65), axialDoc: round3(rec.axialDoc*0.7), radialPct: 28, rpm: Math.round(rec.rpm*0.9) });
+  }
+  if(presetName === 'aggressive'){
+    return Object.assign({}, rec, { feedIPM: round2(rec.feedIPM*1.45), axialDoc: round3(rec.axialDoc*1.35), radialPct: 58, rpm: Math.round(Math.min(TOOLS[jb.toolKey].rpmRange[1], rec.rpm*1.08)) });
+  }
+  return rec;
+}
+function round2(n){ return Math.round(n*100)/100; }
+function round3(n){ return Math.round(n*1000)/1000; }
+
+function computeMRR(setup, toolKey){
+  var tool = TOOLS[toolKey];
+  var radialIn = tool.diameter * (setup.radialPct/100);
+  return Math.max(0.0001, setup.feedIPM * radialIn * setup.axialDoc);
+}
+
+function computeMetrics(jb, setup){
+  var tool = TOOLS[setup.toolKey];
+  var material = MATERIALS[jb.materialKey];
+  var toolCond = state.tools[setup.toolKey] ? state.tools[setup.toolKey].condition : 100;
+  var machCond = state.machine.condition;
+  var rigidityFactor = 0.5 + 0.5*(machCond/100);
+  var famTier = materialFamiliarityTier(jb.materialKey);
+
+  var chipLoad = setup.feedIPM / (setup.rpm * tool.flutes);
+  var loMin = material.chipLoadRange[0], loMax = material.chipLoadRange[1];
+  var chipLoadDeviation = 0;
+  if(chipLoad < loMin) chipLoadDeviation = (loMin-chipLoad)/loMin;
+  else if(chipLoad > loMax) chipLoadDeviation = (chipLoad-loMax)/loMax;
+
+  var mrr = computeMRR(setup, setup.toolKey);
+  var maxSustainableMRR = tool.diameter * 0.5 * rigidityFactor / material.hardness;
+  var machineLoadPct = clamp(100 * mrr / maxSustainableMRR, 0, 180);
+
+  var rec = recommendedSetup(jb);
+  var recMRR = computeMRR(rec, jb.toolKey);
+  var timeFactor = clamp(recMRR / mrr, 0.45, 2.3);
+  var camBonus = state.upgrades.camSoftware ? 0.9 : 1;
+
+  var heatRisk = 12 + material.heatMult*22;
+  if(material.lubeNeed !== 'optional' && setup.lube === 'dry') heatRisk += 22;
+  if(chipLoad < loMin) heatRisk += 30*Math.min(1, (loMin-chipLoad)/loMin);
+  heatRisk += Math.max(0, (setup.rpm - tool.rpmRange[1]*0.9))*0.01;
+  if(state.upgrades.mistCoolant && setup.lube === 'mist') heatRisk -= 16;
+  heatRisk -= famTier*2;
+  heatRisk = clamp(heatRisk, 2, 100);
+
+  var chatterRisk = 8 + Math.max(0,(setup.radialPct-55))*1.2 + (1-tool.rigidity)*25 + (1-rigidityFactor)*22 + (100-toolCond)*0.22;
+  if(material.highRisk) chatterRisk += 15;
+  if(state.upgrades.workholding) chatterRisk -= 15;
+  chatterRisk -= famTier*2;
+  chatterRisk = clamp(chatterRisk, 2, 100);
+
+  var toolWearPerPart = (material.wearMult*1.8 + chipLoadDeviation*20 + heatRisk*0.05 + chatterRisk*0.05) * (jb.toolWear||1);
+  if(state.upgrades.betterTooling) toolWearPerPart *= 0.85;
+  toolWearPerPart = clamp(toolWearPerPart, 0.4, 40);
+
+  var finishScore = 68 + (chipLoadDeviation<0.15 ? 15 : 15*(1-Math.min(1,chipLoadDeviation))) - chatterRisk*0.35 - (100-toolCond)*0.2;
+  if(material.lubeNeed !== 'optional' && setup.lube === 'dry') finishScore -= 10;
+  if(state.upgrades.camSoftware) finishScore += 8;
+  finishScore += famTier*1.5;
+  finishScore = clamp(finishScore, 2, 100);
+
+  var dimensionalRisk = 6 + chatterRisk*0.4 + (1-tool.rigidity)*15 + (100-toolCond)*0.15 + (100-machCond)*0.15;
+  if(material.highRisk) dimensionalRisk += 10;
+  dimensionalRisk = clamp(dimensionalRisk, 2, 100);
+
+  var cycleSeconds = jb.baseTotalSeconds * timeFactor * camBonus;
+
+  return {
+    chipLoad: chipLoad, chipLoadDeviation: chipLoadDeviation, chipLoadRange:[loMin,loMax],
+    mrr: mrr, machineLoadPct: machineLoadPct, cycleSeconds: cycleSeconds,
+    heatRisk: heatRisk, chatterRisk: chatterRisk, toolWearPerPart: toolWearPerPart,
+    finishScore: finishScore, dimensionalRisk: dimensionalRisk, famTier: famTier
+  };
+}
+
+function finishLabelFromScore(score){
+  if(score>=85) return 'Excellent';
+  if(score>=70) return 'Good';
+  if(score>=50) return 'Standard';
+  if(score>=30) return 'Rough';
+  return 'Poor';
+}
+function riskLabel(pct){
+  if(pct>=70) return {label:'High', cls:'bad'};
+  if(pct>=40) return {label:'Moderate', cls:'warn'};
+  return {label:'Low', cls:'good'};
+}
+
+function competitivenessLabel(bidPrice, baseline, deliverySec, baselineDeliverySec){
+  var priceRatio = bidPrice/baseline;
+  var timeRatio = deliverySec/baselineDeliverySec;
+  var score = (1-priceRatio)*0.65 + (1-timeRatio)*0.35;
+  if(score >= 0.12) return 'Very Competitive';
+  if(score >= -0.02) return 'Competitive';
+  if(score >= -0.18) return 'Risky';
+  return 'Unlikely';
+}
+
+
+/* ============================== JOB BOARD ============================== */
+
+function eligibleTemplates(){
+  return JOB_TEMPLATES.filter(function(t){ return t.minRep <= state.reputation; });
+}
+
+function boardHasTemplate(id){
+  return state.board.some(function(b){ return b.templateId === id; });
+}
+
+function refreshBoard(){
+  var elig = eligibleTemplates().filter(function(t){ return !boardHasTemplate(t.id); });
+  var target = 4;
+  while(state.board.length < target && elig.length){
+    var idx = Math.floor(Math.random()*elig.length);
+    var tmpl = elig.splice(idx,1)[0];
+    state.board.push(instantiateJob(tmpl));
+  }
+  if(state.board.length > target){ state.board.length = target; }
+}
+
+function instantiateJob(tmpl){
+  var inst = JSON.parse(JSON.stringify(tmpl));
+  inst.instanceId = uid();
+  inst.templateId = tmpl.id;
+  if(inst.isBid){
+    inst.bidBaseline = Math.round(inst.bidBaseline * rnd(0.92,1.08));
+    inst.bidDeliveryBaselineSec = Math.round(inst.bidDeliveryBaselineSec * rnd(0.9,1.1));
+  }
+  return inst;
+}
+
+function capabilityFit(jb){
+  var material = MATERIALS[jb.materialKey];
+  var toolCond = state.tools[jb.toolKey] ? state.tools[jb.toolKey].condition : 100;
+  var score = 100 - jb.difficulty*12 + (toolCond-100)*0.2 + (state.machine.condition-100)*0.2;
+  if(material.locked && !state.upgrades.betterTooling) score -= 60;
+  if(material.highRisk) score -= 15;
+  if(score >= 65) return {label:'Good', cls:'good'};
+  if(score >= 35) return {label:'Marginal', cls:'warn'};
+  return {label:'Poor', cls:'bad'};
+}
+
+function materialLockedFor(jb){
+  var m = MATERIALS[jb.materialKey];
+  return !!(m.locked && !state.upgrades.betterTooling);
+}
+
+/* ============================== PRODUCTION ============================== */
+
+function startProduction(jb, setup, priceInfo){
+  if(state.activeProduction) return false;
+  var metrics = computeMetrics(jb, setup);
+  state.activeProduction = {
+    job: jb,
+    setup: setup,
+    payment: priceInfo.payment,
+    deadlineSec: priceInfo.deadlineSec,
+    acceptedAt: Date.now(),
+    elapsedSim: 0,
+    totalSim: metrics.cycleSeconds,
+    metrics: metrics,
+    toolKeyUsed: setup.toolKey,
+    toolConditionStart: state.tools[setup.toolKey].condition,
+    machineConditionStart: state.machine.condition,
+    paused: false,
+    pendingEvent: null,
+    eventsResolved: 0,
+    eventsTriggeredAt: [],
+    phase: 'running',
+    result: null,
+    shipped: false,
+    late: false,
+    repairCost: 0
+  };
+  state.board = state.board.filter(function(b){ return b.instanceId !== jb.instanceId; });
+  scheduleAutosave();
+  return true;
+}
+
+var lastTickTime = null;
+function productionTick(){
+  var now = performance.now();
+  if(lastTickTime === null) lastTickTime = now;
+  var dt = (now - lastTickTime)/1000;
+  if(dt > 0.5) dt = 0.5;
+  lastTickTime = now;
+
+  var ap = state.activeProduction;
+  if(ap && ap.phase === 'running' && !ap.paused){
+    ap.elapsedSim += dt*state.speed;
+    var frac = clamp(ap.elapsedSim/ap.totalSim, 0, 1);
+
+    var partIdx = Math.min(ap.job.qty-1, Math.floor(frac*ap.job.qty));
+    var wearApplied = ap.metrics.toolWearPerPart * (frac - (ap._lastFrac||0)) * ap.job.qty;
+    ap._lastFrac = frac;
+    var tool = state.tools[ap.toolKeyUsed];
+    tool.condition = clamp(tool.condition - wearApplied, 0, 100);
+    var condLoss = (0.15 + Math.max(0,(ap.metrics.machineLoadPct-80))*0.02) * dt*state.speed / 3;
+    state.machine.condition = clamp(state.machine.condition - condLoss, 0, 100);
+    state.machine.chipBuildup = clamp(state.machine.chipBuildup + dt*state.speed*0.6, 0, 100);
+
+    maybeTriggerEvent(frac);
+
+    if(frac >= 1){
+      finishProduction();
+    }
+    render();
+  } else {
+    render();
+  }
+  requestAnimationFrame(productionTick);
+}
+requestAnimationFrame(productionTick);
+
+var EVENT_TYPES = ['workholding','coolant','chatter'];
+function maybeTriggerEvent(frac){
+  var ap = state.activeProduction;
+  if(!ap || ap.pendingEvent) return;
+  if(ap.eventsResolved >= 2) return;
+  var checkpoints = [0.35, 0.72];
+  for(var i=0;i<checkpoints.length;i++){
+    var cp = checkpoints[i];
+    if(frac >= cp && ap.eventsTriggeredAt.indexOf(cp) === -1){
+      ap.eventsTriggeredAt.push(cp);
+      var chance = 0.55 + (state.machine.chipBuildup/100)*0.25 + (ap.metrics.chatterRisk/100)*0.15;
+      if(Math.random() < chance){
+        triggerEvent(i===0 ? 'workholding' : pick(['coolant','chatter']));
+      }
+      break;
+    }
+  }
+}
+
+function triggerEvent(type){
+  var ap = state.activeProduction;
+  ap.paused = true;
+  var ev = { type: type };
+  if(type === 'workholding'){
+    var seq = [];
+    var n = 5;
+    var nums = [1,2,3,4,5,6].sort(function(){return Math.random()-0.5;}).slice(0,n);
+    ev.sequence = nums;
+    ev.progress = [];
+    ev.timeLimit = 10;
+    ev.startedAt = Date.now();
+  } else if(type === 'coolant'){
+    ev.target = [Math.floor(rnd(40,60)), 0];
+    ev.target[1] = ev.target[0] + Math.floor(rnd(12,18));
+    ev.value = Math.floor(rnd(0,100));
+    ev.timeLimit = 12;
+    ev.startedAt = Date.now();
+  } else if(type === 'chatter'){
+    ev.timeLimit = 15;
+    ev.startedAt = Date.now();
+  }
+  ap.pendingEvent = ev;
+  render();
+}
+
+function resolveWorkholdingClick(num){
+  var ap = state.activeProduction;
+  if(!ap || !ap.pendingEvent || ap.pendingEvent.type !== 'workholding') return;
+  var ev = ap.pendingEvent;
+  var expected = ev.sequence[ev.progress.length];
+  if(num === expected){
+    ev.progress.push(num);
+    if(ev.progress.length >= ev.sequence.length){
+      finishEvent(true);
+    } else { render(); }
+  } else {
+    finishEvent(false);
+  }
+}
+
+function resolveCoolantAdjust(delta){
+  var ap = state.activeProduction;
+  if(!ap || !ap.pendingEvent || ap.pendingEvent.type !== 'coolant') return;
+  ap.pendingEvent.value = clamp(ap.pendingEvent.value + delta, 0, 100);
+  render();
+}
+function resolveCoolantConfirm(){
+  var ap = state.activeProduction;
+  if(!ap || !ap.pendingEvent || ap.pendingEvent.type !== 'coolant') return;
+  var ev = ap.pendingEvent;
+  var ok = ev.value >= ev.target[0] && ev.value <= ev.target[1];
+  finishEvent(ok);
+}
+function resolveChatterChoice(choice){
+  var ap = state.activeProduction;
+  if(!ap || !ap.pendingEvent || ap.pendingEvent.type !== 'chatter') return;
+  if(choice === 'reduce'){
+    ap.totalSim *= 1.08;
+    ap.metrics.chatterRisk = clamp(ap.metrics.chatterRisk-18,0,100);
+    finishEvent(true);
+  } else if(choice === 'push'){
+    ap.metrics.chatterRisk = clamp(ap.metrics.chatterRisk+10,0,100);
+    state.tools[ap.toolKeyUsed].condition = clamp(state.tools[ap.toolKeyUsed].condition-6,0,100);
+    finishEvent(true, true);
+  } else {
+    ap.totalSim *= 1.15;
+    ap.metrics.chatterRisk = clamp(ap.metrics.chatterRisk-28,0,100);
+    finishEvent(true);
+  }
+}
+
+function finishEvent(success, silent){
+  var ap = state.activeProduction;
+  if(!ap) return;
+  var ev = ap.pendingEvent;
+  if(!success){
+    ap.metrics.dimensionalRisk = clamp(ap.metrics.dimensionalRisk + 14, 0, 100);
+    ap.metrics.chatterRisk = clamp(ap.metrics.chatterRisk + 8, 0, 100);
+    if(ev && ev.type === 'coolant'){ ap.metrics.heatRisk = clamp(ap.metrics.heatRisk+16,0,100); state.machine.chipBuildup = clamp(state.machine.chipBuildup+15,0,100); }
+    toast('Event not resolved cleanly — risk increased.', 'bad');
+  } else if(!silent){
+    ap.metrics.dimensionalRisk = clamp(ap.metrics.dimensionalRisk - 6, 0, 100);
+    if(ev && ev.type === 'coolant'){ state.machine.chipBuildup = clamp(state.machine.chipBuildup-20,0,100); }
+    toast('Handled it — production continues.', 'good');
+  }
+  ap.eventsResolved++;
+  ap.pendingEvent = null;
+  ap.paused = false;
+  lastTickTime = null;
+  render();
+}
+
+function finishProduction(){
+  var ap = state.activeProduction;
+  if(!ap || ap.phase !== 'running') return;
+  ap.phase = 'inspecting';
+  var qty = ap.job.qty;
+  var dimRisk = ap.metrics.dimensionalRisk/100;
+  var finishScore = ap.metrics.finishScore;
+  var reqScore = ap.job.finishScoreReq;
+
+  var scrapChance = clamp(dimRisk*0.55 + Math.max(0,(reqScore-finishScore)/100)*0.5, 0.01, 0.85);
+  var reworkChance = clamp(dimRisk*0.35 + Math.max(0,(reqScore-finishScore)/120)*0.4, 0.01, 0.6);
+
+  var scrap=0, rework=0, accepted=0;
+  for(var i=0;i<qty;i++){
+    var r = Math.random();
+    if(r < scrapChance) scrap++;
+    else if(r < scrapChance+reworkChance) rework++;
+    else accepted++;
+  }
+  if(accepted+rework===0 && qty>0){ accepted = 1; scrap = Math.max(0, scrap-1); }
+
+  var deviationIn = round3(ap.job.toleranceIn * (0.3 + dimRisk*1.4) * rnd(0.6,1.3));
+  var deadlineElapsedSec = (Date.now()-ap.acceptedAt)/1000;
+  var late = deadlineElapsedSec > ap.deadlineSec;
+
+  ap.result = {
+    accepted: accepted, rework: rework, scrap: scrap, qty: qty,
+    deviationIn: deviationIn, finishScore: finishScore, finishLabel: finishLabelFromScore(finishScore),
+    late: late, deadlineElapsedSec: deadlineElapsedSec
+  };
+  ap.late = late;
+  toast('Production complete — inspect your parts.', 'good');
+  render();
+}
+
+function computeJobSummary(ap){
+  var res = ap.result;
+  var reworkCostPerUnit = ap.job.materialCostPerUnit*0.6 + 4;
+  var reworkedIn = res.rework;
+  var acceptedTotal = res.accepted + reworkedIn;
+  var acceptedFraction = ap.job.qty>0 ? acceptedTotal/ap.job.qty : 0;
+
+  var revenue = Math.round(ap.payment * acceptedFraction);
+  var materialCost = Math.round(ap.job.materialCostPerUnit * res.qty);
+  var scrapCost = Math.round(ap.job.materialCostPerUnit * res.scrap);
+  var toolWearCost = Math.round((state.tools[ap.toolKeyUsed] ? (ap.toolConditionStart - state.tools[ap.toolKeyUsed].condition) : 0)/100 * TOOLS[ap.toolKeyUsed].price);
+  var reworkCost = Math.round(reworkedIn*reworkCostPerUnit);
+  var repairCost = ap.repairCost||0;
+  var latePenalty = res.late ? ap.job.latePenalty : 0;
+
+  var netProfit = revenue - materialCost - toolWearCost - reworkCost - repairCost - latePenalty;
+  var repChange = Math.round(ap.job.repReward*acceptedFraction - ap.job.rejectionRepPenalty*(res.scrap/Math.max(1,res.qty)) - (res.late? 2:0));
+
+  return {
+    revenue: revenue, materialCost: materialCost, scrapCost: scrapCost, toolWearCost: toolWearCost,
+    reworkCost: reworkCost, repairCost: repairCost, latePenalty: latePenalty, netProfit: netProfit, repChange: repChange,
+    acceptedTotal: acceptedTotal, acceptedFraction: acceptedFraction
+  };
+}
+
+function shipActiveJob(){
+  var ap = state.activeProduction;
+  if(!ap || ap.phase !== 'inspecting' || ap.shipped) return false;
+  ap.shipped = true;
+  var summary = computeJobSummary(ap);
+  state.cash += summary.netProfit;
+  state.reputation = Math.max(0, state.reputation + summary.repChange);
+
+  state.stats.jobsCompleted++;
+  if(ap.job.tier === 2) state.stats.tier2Completed++;
+  if(ap.result.late) state.stats.lateCount++; else state.stats.onTimeCount++;
+  state.stats.totalRevenue += summary.revenue;
+  state.stats.totalProfit += summary.netProfit;
+  state.stats.totalScrapUnits += ap.result.scrap;
+  state.stats.totalUnits += ap.result.qty;
+  state.stats.bestJobProfit = Math.max(state.stats.bestJobProfit, summary.netProfit);
+  state.stats.materialJobsCount[ap.job.materialKey] = (state.stats.materialJobsCount[ap.job.materialKey]||0)+1;
+
+  state.history.unshift({
+    part: ap.job.part, customer: ap.job.customer, profit: summary.netProfit,
+    result: ap.result.late ? 'Late' : (ap.result.scrap>0 ? 'Shipped (partial scrap)' : 'On time'),
+    at: Date.now()
+  });
+  if(state.history.length>25) state.history.length = 25;
+
+  state.activeProduction = null;
+  refreshBoard();
+  checkMilestone();
+  scheduleAutosave();
+  return summary;
+}
+
+/* ============================== UPGRADES / MAINTENANCE ============================== */
+
+function purchaseUpgrade(key){
+  if(!UPGRADES[key]) return false;
+  if(state.upgrades[key]) return false;
+  var cost = UPGRADES[key].cost;
+  if(state.cash < cost) return false;
+  state.cash -= cost;
+  state.upgrades[key] = true;
+  checkMilestone();
+  scheduleAutosave();
+  return true;
+}
+
+function maintenanceCost(){ return state.upgrades.maintenanceBench ? 60 : 80; }
+
+function doMaintenance(){
+  var cost = maintenanceCost();
+  if(state.cash < cost) return false;
+  state.cash -= cost;
+  var restore = state.upgrades.maintenanceBench ? 35 : 22;
+  state.machine.condition = clamp(state.machine.condition + restore, 0, 100);
+  state.machine.cleanliness = clamp(state.machine.cleanliness + 40, 0, 100);
+  state.machine.chipBuildup = clamp(state.machine.chipBuildup - 50, 0, 100);
+  state.machine.lubrication = clamp(state.machine.lubrication + 40, 0, 100);
+  scheduleAutosave();
+  return true;
+}
+
+function replaceTool(toolKey){
+  toolKey = toolKey || state.toolKey;
+  var price = TOOLS[toolKey].price;
+  if(state.cash < price) return false;
+  state.cash -= price;
+  state.tools[toolKey].condition = 100;
+  scheduleAutosave();
+  return true;
+}
+
+/* ============================== MILESTONE ============================== */
+
+function milestoneStatus(){
+  return [
+    { label:'Cash: $25,000', done: state.cash >= MILESTONE.cash, cur: state.cash, target: MILESTONE.cash, money:true },
+    { label:'Reputation: 100', done: state.reputation >= MILESTONE.reputation, cur: state.reputation, target: MILESTONE.reputation },
+    { label:'10 jobs completed', done: state.stats.jobsCompleted >= MILESTONE.jobsCompleted, cur: state.stats.jobsCompleted, target: MILESTONE.jobsCompleted },
+    { label:'2 local repair jobs completed', done: state.stats.tier2Completed >= MILESTONE.tier2Completed, cur: state.stats.tier2Completed, target: MILESTONE.tier2Completed },
+    { label:'Inspection Package purchased', done: !!state.upgrades.inspectionPackage, cur: state.upgrades.inspectionPackage?1:0, target:1 }
+  ];
+}
+function checkMilestone(){
+  var st = milestoneStatus();
+  var allDone = st.every(function(s){ return s.done; });
+  if(allDone && !state.milestoneShown){
+    state.milestoneShown = true;
+    state.shopLevel = 'Garage (Ready to Move)';
+    showChapterComplete();
+  }
+}
+
+
+/* ============================== TOAST ============================== */
+
+function toast(msg, kind){
+  var region = document.getElementById('toast-region');
+  if(!region) return;
+  var el = document.createElement('div');
+  el.className = 'toast' + (kind ? ' '+kind : '');
+  el.textContent = msg;
+  region.appendChild(el);
+  setTimeout(function(){ el.remove(); }, 3200);
+}
+
+/* ============================== MODAL ============================== */
+
+function openModal(innerHtml, extraClass){
+  var root = document.getElementById('modal-root');
+  root.innerHTML = '<div class="modal-backdrop" data-action="modal-backdrop"><div class="modal ' + (extraClass||'') + '" role="dialog" aria-modal="true">' + innerHtml + '</div></div>';
+  var firstFocusable = root.querySelector('button, input, select, textarea');
+  if(firstFocusable) firstFocusable.focus();
+}
+function closeModal(){
+  var root = document.getElementById('modal-root');
+  root.innerHTML = '';
+}
+
+/* ============================== HEADER / MASTER RENDER ============================== */
+
+function render(){
+  if(!state) return;
+  document.getElementById('stat-cash').textContent = fmtMoney(state.cash);
+  document.getElementById('stat-rep').textContent = Math.round(state.reputation);
+  document.getElementById('stat-shop').textContent = state.shopLevel;
+
+  var speedBtns = document.querySelectorAll('#speed-controls button');
+  speedBtns.forEach(function(b){
+    var s = parseInt(b.getAttribute('data-speed'),10);
+    b.setAttribute('aria-pressed', s===state.speed ? 'true':'false');
+    b.disabled = !state.activeProduction || state.activeProduction.phase !== 'running';
+  });
+
+  var ms = milestoneStatus();
+  var doneCount = ms.filter(function(s){return s.done;}).length;
+  document.getElementById('milestone-btn').textContent = 'Move Out of the Garage: ' + doneCount + '/5';
+
+  renderJobBoard();
+  renderProduction();
+  renderUpgrades();
+  renderRecords();
+
+  var gm = document.getElementById('settings-mode-guided');
+  var mm = document.getElementById('settings-mode-machinist');
+  if(gm && mm){
+    gm.setAttribute('aria-pressed', state.mode==='guided'?'true':'false');
+    mm.setAttribute('aria-pressed', state.mode==='machinist'?'true':'false');
+  }
+}
+
+/* ============================== JOB BOARD RENDER ============================== */
+
+function renderJobBoard(){
+  var host = document.getElementById('job-board');
+  if(!host) return;
+  if(state.activeProduction){
+    host.innerHTML = '<div class="card"><p>Your machine is busy. Finish the current job in the <b>Production</b> tab before accepting a new one.</p></div>';
+    return;
+  }
+  if(!state.board.length){
+    host.innerHTML = '<div class="card"><p class="muted">No jobs available right now. Check back after finishing a job.</p></div>';
+    return;
+  }
+  host.innerHTML = state.board.map(function(jb){
+    var fit = capabilityFit(jb);
+    var locked = materialLockedFor(jb);
+    return '<div class="card job-card">' +
+      '<div class="spread"><h3 style="margin:0;">' + jb.part + '</h3><span class="pill ' + fit.cls + '">' + fit.label + '</span></div>' +
+      '<div class="muted" style="font-size:.85rem;">' + jb.customer + ' &middot; ' + jb.category + '</div>' +
+      '<div class="facts">' +
+        '<div>Material: <b>' + MATERIALS[jb.materialKey].label + '</b></div>' +
+        '<div>Qty: <b>' + jb.qty + '</b></div>' +
+        '<div>Size: <b>' + jb.size + '</b></div>' +
+        '<div>Tol: <b>&plusmn;' + jb.toleranceIn + '"</b></div>' +
+        '<div>Finish: <b>' + jb.finishLabel + '</b></div>' +
+        '<div>Difficulty: <b>' + jb.difficulty + '/5</b></div>' +
+        (jb.isBid ? '<div>Type: <b>RFQ (bid)</b></div>' : '<div>Deadline: <b>' + fmtTime(jb.deadlineSec) + '</b></div>') +
+        (jb.isBid ? '' : '<div>Pay: <b>' + fmtMoney(jb.payment) + '</b></div>') +
+      '</div>' +
+      (locked ? '<p class="pill bad">Material locked &mdash; requires Better Tooling Package</p>' : '') +
+      '<button type="button" data-action="open-job-detail" data-id="' + jb.instanceId + '">Inspect Job</button>' +
+    '</div>';
+  }).join('');
+}
+
+function findBoardJob(id){ return state.board.find(function(b){ return b.instanceId===id; }); }
+
+function jobDetailHtml(jb){
+  var fit = capabilityFit(jb);
+  var locked = materialLockedFor(jb);
+  var warn = '';
+  if(locked) warn = '<p class="pill bad">This job needs Mild Steel access. Buy the Better Tooling Package first.</p>';
+  else if(fit.label==='Poor') warn = '<p class="pill bad">Warning: this job is a stretch for your current shop &mdash; expect a higher chance of scrap.</p>';
+  else if(fit.label==='Marginal') warn = '<p class="pill warn">Caution: this job is moderately difficult for your current setup.</p>';
+  return '<div class="modal-header"><h2>' + jb.part + '</h2><button class="close-x" data-action="close-modal" aria-label="Close">&times;</button></div>' +
+    '<p class="muted">' + jb.customer + ' &middot; ' + jb.category + '</p>' +
+    warn +
+    '<div class="facts" style="font-size:.9rem; display:grid; grid-template-columns:1fr 1fr; gap:.3em .8em;">' +
+      '<div>Material: <b>' + MATERIALS[jb.materialKey].label + '</b></div>' +
+      '<div>Quantity: <b>' + jb.qty + '</b></div>' +
+      '<div>Size: <b>' + jb.size + '</b></div>' +
+      '<div>Tolerance: <b>&plusmn;' + jb.toleranceIn + '"</b></div>' +
+      '<div>Surface finish: <b>' + jb.finishLabel + '</b></div>' +
+      '<div>Difficulty: <b>' + jb.difficulty + '/5</b></div>' +
+      '<div>Capability fit: <b>' + fit.label + '</b></div>' +
+      (jb.isBid ? '' : '<div>Deadline: <b>' + fmtTime(jb.deadlineSec) + '</b></div>') +
+      (jb.isBid ? '' : '<div>Payment: <b>' + fmtMoney(jb.payment) + '</b></div>') +
+      '<div>Material cost: <b>' + fmtMoney(jb.materialCostPerUnit*jb.qty) + '</b></div>' +
+      '<div>Reputation reward: <b>+' + jb.repReward + '</b></div>' +
+      (jb.isBid ? '' : '<div>Late penalty: <b>' + fmtMoney(jb.latePenalty) + '</b></div>') +
+      '<div>Rejection penalty: <b>-' + jb.rejectionRepPenalty + ' rep / scrap unit</b></div>' +
+    '</div>' +
+    (locked ? '' : (jb.isBid ?
+      '<button type="button" class="primary" style="margin-top:1em; width:100%;" data-action="open-bid" data-id="' + jb.instanceId + '">Prepare Bid</button>' :
+      '<button type="button" class="primary" style="margin-top:1em; width:100%;" data-action="accept-job" data-id="' + jb.instanceId + '">Accept Job &amp; Configure Setup</button>'
+    ));
+}
+
+function bidModalHtml(jb){
+  return '<div class="modal-header"><h2>Bid: ' + jb.part + '</h2><button class="close-x" data-action="close-modal" aria-label="Close">&times;</button></div>' +
+    '<p class="muted">' + jb.customer + '</p>' +
+    '<p>Suggested market price: <b>' + fmtMoney(jb.bidBaseline) + '</b> &middot; typical delivery: <b>' + fmtTime(jb.bidDeliveryBaselineSec) + '</b></p>' +
+    '<label for="bid-price">Your bid price ($)</label>' +
+    '<input type="number" id="bid-price" min="50" max="' + Math.round(jb.bidBaseline*1.6) + '" value="' + jb.bidBaseline + '">' +
+    '<label for="bid-delivery">Promised delivery (seconds)</label>' +
+    '<input type="number" id="bid-delivery" min="' + Math.round(jb.bidDeliveryBaselineSec*0.5) + '" max="' + Math.round(jb.bidDeliveryBaselineSec*1.8) + '" value="' + jb.bidDeliveryBaselineSec + '">' +
+    '<p style="margin-top:.6em;">Competitiveness: <span class="pill" id="bid-competitiveness">Competitive</span></p>' +
+    '<p class="muted" style="font-size:.82rem;">Lower prices and faster delivery look more attractive to the customer, but leave less profit and less slack if things go wrong.</p>' +
+    '<button type="button" class="primary" style="width:100%; margin-top:.6em;" data-action="submit-bid" data-id="' + jb.instanceId + '">Submit Bid</button>';
+}
+
+function updateBidCompetitiveness(jb){
+  var priceEl = document.getElementById('bid-price');
+  var delivEl = document.getElementById('bid-delivery');
+  var out = document.getElementById('bid-competitiveness');
+  if(!priceEl || !delivEl || !out) return;
+  var price = parseFloat(priceEl.value)||jb.bidBaseline;
+  var deliv = parseFloat(delivEl.value)||jb.bidDeliveryBaselineSec;
+  var label = competitivenessLabel(price, jb.bidBaseline, deliv, jb.bidDeliveryBaselineSec);
+  out.textContent = label;
+  out.className = 'pill ' + (label==='Very Competitive'?'good':label==='Competitive'?'good':label==='Risky'?'warn':'bad');
+}
+
+
+/* ============================== SETUP MODAL ============================== */
+
+var pendingSetupJob = null;
+var pendingSetupPrice = null;
+var currentPresetChoice = 'balanced';
+
+function openSetupModal(jb, priceInfo){
+  pendingSetupJob = jb;
+  pendingSetupPrice = priceInfo;
+  currentPresetChoice = 'balanced';
+  openModal(state.mode==='guided' ? guidedSetupHtml(jb) : machinistSetupHtml(jb), 'setup-modal');
+  refreshSetupPreview();
+}
+
+function guidedSetupHtml(jb){
+  var toolLabel = TOOLS[jb.toolKey].label;
+  return '<div class="modal-header"><h2>Configure Setup</h2><button class="close-x" data-action="close-modal" aria-label="Close">&times;</button></div>' +
+    '<p class="muted">' + jb.part + ' &middot; ' + MATERIALS[jb.materialKey].label + ' &middot; Tool: ' + toolLabel + '</p>' +
+    '<div class="row" id="setup-form" role="group" aria-label="Production preset">' +
+      '<button type="button" data-action="pick-preset" data-preset="conservative">Conservative</button>' +
+      '<button type="button" data-action="pick-preset" data-preset="balanced" aria-pressed="true">Balanced (Recommended)</button>' +
+      '<button type="button" data-action="pick-preset" data-preset="aggressive">Aggressive</button>' +
+    '</div>' +
+    '<p class="muted" id="preset-tip" style="font-size:.85rem;">Balanced settings follow the shop\'s recommended feeds and speeds &mdash; a safe, steady choice.</p>' +
+    '<div id="setup-preview"></div>' +
+    '<button type="button" class="primary" style="width:100%; margin-top:.8em;" data-action="confirm-start-production">Start Production</button>';
+}
+
+function machinistSetupHtml(jb){
+  var rec = recommendedSetup(jb);
+  var toolOptions = ['em18','em14'].map(function(k){
+    return '<option value="' + k + '"' + (k===jb.toolKey?' selected':'') + '>' + TOOLS[k].label + '</option>';
+  }).join('');
+  return '<div class="modal-header"><h2>Machinist Setup</h2><button class="close-x" data-action="close-modal" aria-label="Close">&times;</button></div>' +
+    '<p class="muted">' + jb.part + ' &middot; ' + MATERIALS[jb.materialKey].label + '</p>' +
+    '<div id="setup-form">' +
+      '<label for="su-tool">Tool</label><select id="su-tool">' + toolOptions + '</select>' +
+      '<label for="su-rpm">Spindle RPM: <span id="su-rpm-val">' + rec.rpm + '</span></label>' +
+      '<input type="range" id="su-rpm" min="1000" max="10000" step="100" value="' + rec.rpm + '">' +
+      '<label for="su-feed">Feed rate (IPM): <span id="su-feed-val">' + rec.feedIPM + '</span></label>' +
+      '<input type="range" id="su-feed" min="1" max="40" step="0.5" value="' + rec.feedIPM + '">' +
+      '<label for="su-axial">Axial depth of cut (in): <span id="su-axial-val">' + rec.axialDoc + '</span></label>' +
+      '<input type="range" id="su-axial" min="0.01" max="0.35" step="0.01" value="' + rec.axialDoc + '">' +
+      '<label for="su-radial">Radial engagement (%): <span id="su-radial-val">' + rec.radialPct + '</span></label>' +
+      '<input type="range" id="su-radial" min="5" max="100" step="1" value="' + rec.radialPct + '">' +
+      '<label for="su-lube">Lubrication</label>' +
+      '<select id="su-lube"><option value="dry"' + (rec.lube==='dry'?' selected':'') + '>Dry</option><option value="mist"' + (rec.lube==='mist'?' selected':'') + '>Mist</option></select>' +
+    '</div>' +
+    (state.upgrades.camSoftware ? '<button type="button" style="margin-top:.6em;" data-action="auto-recommend">Auto-Recommend Optimal Setup</button>' : '') +
+    '<div id="setup-preview"></div>' +
+    '<button type="button" class="primary" style="width:100%; margin-top:.8em;" data-action="confirm-start-production">Start Production</button>';
+}
+
+function readSetupFromForm(jb){
+  if(state.mode==='guided'){
+    return presetSetup(jb, currentPresetChoice);
+  }
+  var toolEl = document.getElementById('su-tool');
+  var toolKey = toolEl ? toolEl.value : jb.toolKey;
+  return {
+    toolKey: toolKey,
+    rpm: parseInt(document.getElementById('su-rpm').value,10),
+    feedIPM: parseFloat(document.getElementById('su-feed').value),
+    axialDoc: parseFloat(document.getElementById('su-axial').value),
+    radialPct: parseInt(document.getElementById('su-radial').value,10),
+    lube: document.getElementById('su-lube').value
+  };
+}
+
+function refreshSetupPreview(){
+  if(!pendingSetupJob) return;
+  var jb = pendingSetupJob;
+  var setup = readSetupFromForm(jb);
+  var m = computeMetrics(jb, setup);
+  var host = document.getElementById('setup-preview');
+  if(!host) return;
+
+  if(state.mode==='guided'){
+    var tipEl = document.getElementById('preset-tip');
+    if(tipEl){
+      var tips = {
+        conservative: 'Slower and safer. Lower risk of scrap, longer cycle time.',
+        balanced: 'Balanced settings follow the shop\'s recommended feeds and speeds — a safe, steady choice.',
+        aggressive: 'Faster cycle time, but higher heat, chatter, and tool wear risk.'
+      };
+      tipEl.textContent = tips[currentPresetChoice];
+    }
+  }
+
+  var warnings = [];
+  if(m.machineLoadPct > 100) warnings.push('Machine load is very high — increased risk of stalls and machine wear.');
+  if(m.chatterRisk > 65) warnings.push('High chatter risk — expect a rougher finish and possible dimensional issues.');
+  if(m.heatRisk > 65) warnings.push('High heat risk — consider mist lubrication or a lighter cut.');
+  if(m.chipLoadDeviation > 0.4) warnings.push('Chip load is far outside the recommended range for this material.');
+
+  host.innerHTML =
+    '<div class="stat-grid">' +
+      statBox('Chip load', (m.chipLoad*1000).toFixed(2) + ' thou/tooth') +
+      statBox('Cycle time', fmtTime(m.cycleSeconds)) +
+      statBox('Machine load', Math.round(m.machineLoadPct) + '%', riskLabel(m.machineLoadPct).cls) +
+      statBox('Heat risk', riskLabel(m.heatRisk).label, riskLabel(m.heatRisk).cls) +
+      statBox('Chatter risk', riskLabel(m.chatterRisk).label, riskLabel(m.chatterRisk).cls) +
+      statBox('Tool wear / part', m.toolWearPerPart.toFixed(1) + '%') +
+      statBox('Finish prediction', finishLabelFromScore(m.finishScore)) +
+      statBox('Dimensional risk', riskLabel(m.dimensionalRisk).label, riskLabel(m.dimensionalRisk).cls) +
+    '</div>' +
+    (warnings.length ? '<ul class="warning-list">' + warnings.map(function(w){return '<li>'+w+'</li>';}).join('') + '</ul>' : '');
+}
+
+function statBox(label, value, cls){
+  return '<div class="stat-box"><div class="v' + (cls?(' '+ (cls==='bad'?'':'')):'') + '" style="' + (cls==='bad'?'color:var(--bad)':cls==='warn'?'color:var(--warn)':cls==='good'?'color:var(--good)':'') + '">' + value + '</div><div class="l">' + label + '</div></div>';
+}
+
+
+/* ============================== PRODUCTION PANEL RENDER ============================== */
+
+function millSvg(spinning){
+  return '<svg viewBox="0 0 300 200" role="img" aria-label="MicroMill D1">' +
+    '<rect x="6" y="6" width="288" height="188" rx="10" fill="#1a1f27" stroke="#333d4d"/>' +
+    '<rect x="36" y="140" width="228" height="24" rx="4" fill="#3a4252" stroke="#4a5468"/>' +
+    '<rect x="90" y="112" width="120" height="30" rx="3" fill="#8a929e" stroke="#5f6879"/>' +
+    '<rect x="90" y="112" width="55" height="30" rx="3" fill="#6d7484"/>' +
+    '<line x1="150" y1="34" x2="150" y2="112" stroke="#4a5468" stroke-width="10" stroke-linecap="round"/>' +
+    '<g class="spindle-group" style="transform-box:fill-box;' + (spinning?'':' animation-play-state:paused;') + '">' +
+      '<circle cx="150" cy="114" r="8" fill="#c9d3de" stroke="#5f6879" stroke-width="2"/>' +
+      '<line x1="150" y1="106" x2="150" y2="122" stroke="#3a4252" stroke-width="2"/>' +
+      '<line x1="142" y1="114" x2="158" y2="114" stroke="#3a4252" stroke-width="2"/>' +
+    '</g>' +
+    '</svg>';
+}
+
+function renderProduction(){
+  var idle = document.getElementById('production-idle');
+  var active = document.getElementById('production-active');
+  var ap = state.activeProduction;
+
+  if(!ap){
+    idle.classList.remove('hidden');
+    active.classList.add('hidden');
+    var mm = document.getElementById('mill-mini-idle');
+    if(mm && !mm.dataset.built){ mm.innerHTML = millSvg(false); mm.dataset.built='1'; }
+    return;
+  }
+  idle.classList.add('hidden');
+  active.classList.remove('hidden');
+
+  var jb = ap.job, m = ap.metrics;
+  var frac = clamp(ap.elapsedSim/ap.totalSim,0,1);
+  var opIdx = Math.floor(((frac*jb.qty) % 1) * jb.ops.length);
+  var currentOp = OP_LABELS[jb.ops[Math.min(jb.ops.length-1,opIdx)]] || jb.ops[0];
+  var partNum = Math.min(jb.qty, Math.floor(frac*jb.qty)+1);
+  var remainingSim = Math.max(0, ap.totalSim - ap.elapsedSim);
+  var remainingWall = remainingSim / state.speed;
+  var deadlineRemain = ap.deadlineSec - (Date.now()-ap.acceptedAt)/1000;
+  var toolCond = state.tools[ap.toolKeyUsed].condition;
+
+  var warnings = [];
+  if(m.machineLoadPct>105) warnings.push('Machine is overloaded — condition dropping faster.');
+  if(toolCond<25) warnings.push('Tool is nearly worn out — consider replacing it after this job.');
+  if(deadlineRemain<20 && deadlineRemain>0) warnings.push('Deadline approaching soon!');
+  if(deadlineRemain<=0) warnings.push('Deadline passed — this job will ship late.');
+
+  var qualityScore = clamp(100 - m.dimensionalRisk*0.5 - Math.max(0,50-m.finishScore)*0.5, 0, 100);
+  var qualityLabel = qualityScore>=75?'Good':qualityScore>=50?'Fair':'At risk';
+
+  var html = '<div class="card">' +
+    '<div class="spread"><h2>' + jb.part + '</h2><span class="op-badge">' + currentOp + '</span></div>' +
+    '<div class="mill-mini" id="mill-mini-active" aria-hidden="true"></div>' +
+    (ap.phase==='running' ? (
+      '<div class="bar-track" role="progressbar" aria-valuenow="' + Math.round(frac*100) + '" aria-valuemin="0" aria-valuemax="100"><div class="bar-fill" style="width:' + (frac*100) + '%"></div></div>' +
+      '<div class="stat-grid" style="margin-top:.6em;">' +
+        statBox('Part', partNum + ' / ' + jb.qty) +
+        statBox('Time left', ap.paused ? 'Paused' : fmtTime(remainingWall)) +
+        statBox('Machine load', Math.round(m.machineLoadPct)+'%', riskLabel(m.machineLoadPct).cls) +
+        statBox('Tool condition', Math.round(toolCond)+'%', toolCond<30?'bad':toolCond<60?'warn':'good') +
+        statBox('Machine condition', Math.round(state.machine.condition)+'%', state.machine.condition<30?'bad':state.machine.condition<60?'warn':'good') +
+        statBox('Quality estimate', qualityLabel, qualityLabel==='Good'?'good':qualityLabel==='Fair'?'warn':'bad') +
+        statBox('Deadline', deadlineRemain>0?fmtTime(deadlineRemain):'LATE', deadlineRemain<20?'bad':'') +
+      '</div>' +
+      (warnings.length?'<ul class="warning-list">'+warnings.map(function(w){return '<li>'+w+'</li>';}).join('')+'</ul>':'') +
+      (ap.pendingEvent ? eventHtml(ap.pendingEvent) : '')
+    ) : renderInspectionPanel(ap)) +
+    '</div>';
+
+  active.innerHTML = html;
+  var mmEl = document.getElementById('mill-mini-active');
+  if(mmEl) mmEl.innerHTML = millSvg(ap.phase==='running' && !ap.paused);
+}
+
+function eventHtml(ev){
+  if(ev.type==='workholding'){
+    var nums=[1,2,3,4,5,6];
+    return '<div class="card event-modal" style="margin-top:1em; background:var(--panel2);"><h3>Loose Workholding!</h3>' +
+      '<p class="muted">Tighten the bolts in the highlighted order before time runs out.</p>' +
+      '<p>Order so far: ' + (ev.progress.length ? ev.progress.join(' → ') : '(none yet)') + ' &mdash; next: <b>' + (ev.sequence[0]===ev.sequence[ev.progress.length]?'':'') + (ev.progress.length<ev.sequence.length?'bolt highlighted below':'') + '</b></p>' +
+      '<div class="bolt-grid">' + nums.map(function(n){
+        var isNext = ev.sequence[ev.progress.length]===n;
+        var done = ev.progress.indexOf(n)!==-1;
+        return '<button type="button" class="bolt-btn' + (done?' done':'') + '" style="' + (isNext&&!done?'outline:3px solid var(--accent);':'') + '" data-action="event-bolt" data-num="' + n + '" ' + (done?'disabled':'') + '>' + n + (done?' ✓':'') + '</button>';
+      }).join('') + '</div>' +
+    '</div>';
+  }
+  if(ev.type==='coolant'){
+    return '<div class="card event-modal" style="margin-top:1em; background:var(--panel2);"><h3>Chip Evacuation Issue!</h3>' +
+      '<p class="muted">Adjust mist/chip-clearing flow into the target zone, then confirm.</p>' +
+      '<div class="slider-target-wrap">' +
+        '<div class="slider-target-zone" style="left:' + ev.target[0] + '%; width:' + (ev.target[1]-ev.target[0]) + '%;"></div>' +
+        '<input type="range" id="coolant-slider" min="0" max="100" value="' + ev.value + '">' +
+      '</div>' +
+      '<p>Current value: <b>' + Math.round(ev.value) + '</b> (target ' + ev.target[0] + '&ndash;' + ev.target[1] + ')</p>' +
+      '<div class="row">' +
+        '<button type="button" data-action="coolant-adjust" data-delta="-5">-5</button>' +
+        '<button type="button" data-action="coolant-adjust" data-delta="5">+5</button>' +
+        '<button type="button" class="primary" data-action="coolant-confirm">Confirm</button>' +
+      '</div>' +
+    '</div>';
+  }
+  if(ev.type==='chatter'){
+    return '<div class="card event-modal" style="margin-top:1em; background:var(--panel2);"><h3>Chatter Starting</h3>' +
+      '<p class="muted">You hear the cut starting to chatter. What do you do?</p>' +
+      '<div class="row">' +
+        '<button type="button" data-action="chatter-choice" data-choice="reduce">Reduce feed now</button>' +
+        '<button type="button" data-action="chatter-choice" data-choice="push">Push through</button>' +
+        '<button type="button" data-action="chatter-choice" data-choice="stop">Stop &amp; inspect tool</button>' +
+      '</div>' +
+    '</div>';
+  }
+  return '';
+}
+
+function renderInspectionPanel(ap){
+  var res = ap.result;
+  if(!res) return '<p class="muted">Finishing up...</p>';
+  var summary = computeJobSummary(ap);
+  return '<h3 style="margin-top:1em;">Inspection Results</h3>' +
+    '<div class="stat-grid">' +
+      statBox('Required tolerance', '±' + ap.job.toleranceIn + '"') +
+      statBox('Measured deviation', '±' + res.deviationIn + '"', res.deviationIn>ap.job.toleranceIn?'bad':'good') +
+      statBox('Finish result', res.finishLabel) +
+      statBox('Accepted', res.accepted, 'good') +
+      statBox('Reworkable', res.rework, res.rework>0?'warn':'') +
+      statBox('Scrap', res.scrap, res.scrap>0?'bad':'') +
+    '</div>' +
+    '<h3 style="margin-top:1em;">Job Summary</h3>' +
+    '<table><tbody>' +
+      '<tr><td>Revenue</td><td>' + fmtMoney(summary.revenue) + '</td></tr>' +
+      '<tr><td>Material cost</td><td>-' + fmtMoney(summary.materialCost) + '</td></tr>' +
+      '<tr><td>&nbsp;&nbsp;of which scrap</td><td>-' + fmtMoney(summary.scrapCost) + '</td></tr>' +
+      '<tr><td>Tool wear cost</td><td>-' + fmtMoney(summary.toolWearCost) + '</td></tr>' +
+      '<tr><td>Rework cost</td><td>-' + fmtMoney(summary.reworkCost) + '</td></tr>' +
+      (summary.repairCost?'<tr><td>Repair cost</td><td>-' + fmtMoney(summary.repairCost) + '</td></tr>':'') +
+      (summary.latePenalty?'<tr><td>Late penalty</td><td>-' + fmtMoney(summary.latePenalty) + '</td></tr>':'') +
+      '<tr><td><b>Net profit</b></td><td><b>' + fmtMoney(summary.netProfit) + '</b></td></tr>' +
+      '<tr><td>Reputation change</td><td>' + (summary.repChange>=0?'+':'') + summary.repChange + '</td></tr>' +
+    '</tbody></table>' +
+    (res.late ? '<p class="pill bad">Shipped late</p>' : '<p class="pill good">On time</p>') +
+    '<button type="button" class="primary" style="width:100%; margin-top:.8em;" data-action="ship-job" ' + (ap.shipped?'disabled':'') + '>' + (ap.shipped?'Shipped':'Ship Job') + '</button>';
+}
+
+
+/* ============================== UPGRADES / RECORDS RENDER ============================== */
+
+function renderUpgrades(){
+  var statusHost = document.getElementById('maintenance-status');
+  if(statusHost){
+    statusHost.innerHTML =
+      statBox('Machine condition', Math.round(state.machine.condition)+'%', state.machine.condition<30?'bad':state.machine.condition<60?'warn':'good') +
+      statBox('Cleanliness', Math.round(state.machine.cleanliness)+'%') +
+      statBox('Chip buildup', Math.round(state.machine.chipBuildup)+'%', state.machine.chipBuildup>60?'bad':state.machine.chipBuildup>30?'warn':'good') +
+      statBox('Lubrication', Math.round(state.machine.lubrication)+'%') +
+      statBox('Tool in use', TOOLS[state.toolKey].label.split('(')[0]) +
+      statBox('Tool condition', Math.round(state.tools[state.toolKey].condition)+'%', state.tools[state.toolKey].condition<30?'bad':state.tools[state.toolKey].condition<60?'warn':'good');
+  }
+  var mc = document.getElementById('maint-cost');
+  if(mc) mc.textContent = maintenanceCost();
+  var rtb = document.getElementById('replace-tool-btn');
+  if(rtb) rtb.textContent = 'Replace Current Tool ($' + TOOLS[state.toolKey].price + ')';
+
+  var grid = document.getElementById('upgrade-grid');
+  if(!grid) return;
+  grid.innerHTML = Object.keys(UPGRADES).map(function(key){
+    var u = UPGRADES[key];
+    var owned = state.upgrades[key];
+    return '<div class="card">' +
+      '<div class="spread"><h3 style="margin:0;">' + u.label + '</h3>' + (owned?'<span class="pill good">Owned</span>':'') + '</div>' +
+      '<p class="muted" style="font-size:.85rem;">' + u.desc + '</p>' +
+      (owned ? '' : '<button type="button" class="secondary" data-action="buy-upgrade" data-key="' + key + '" ' + (state.cash<u.cost?'disabled':'') + '>Buy for ' + fmtMoney(u.cost) + '</button>') +
+    '</div>';
+  }).join('');
+}
+
+function renderRecords(){
+  var s = state.stats;
+  var host = document.getElementById('records-stats');
+  if(host){
+    var onTimePct = (s.onTimeCount+s.lateCount)>0 ? Math.round(100*s.onTimeCount/(s.onTimeCount+s.lateCount)) : 100;
+    var scrapRate = s.totalUnits>0 ? Math.round(100*s.totalScrapUnits/s.totalUnits) : 0;
+    host.innerHTML =
+      statBox('Jobs completed', s.jobsCompleted) +
+      statBox('On-time %', onTimePct+'%') +
+      statBox('Scrap rate', scrapRate+'%') +
+      statBox('Total revenue', fmtMoney(s.totalRevenue)) +
+      statBox('Total profit', fmtMoney(s.totalProfit)) +
+      statBox('Best job profit', fmtMoney(s.bestJobProfit));
+  }
+  var fam = document.getElementById('records-familiarity');
+  if(fam){
+    fam.innerHTML = Object.keys(MATERIALS).map(function(k){
+      var tier = materialFamiliarityTier(k);
+      var labels = ['New','Familiar','Experienced','Expert'];
+      return statBox(MATERIALS[k].label, labels[tier]);
+    }).join('');
+  }
+  var hist = document.getElementById('records-history');
+  if(hist){
+    hist.innerHTML = state.history.slice(0,10).map(function(h){
+      return '<tr><td>' + h.part + '</td><td>' + h.result + '</td><td>' + fmtMoney(h.profit) + '</td></tr>';
+    }).join('') || '<tr><td colspan="3" class="muted">No jobs shipped yet.</td></tr>';
+  }
+}
+
+/* ============================== MILESTONE / CHAPTER MODALS ============================== */
+
+function milestoneModalHtml(){
+  var st = milestoneStatus();
+  return '<div class="modal-header"><h2>Move Out of the Garage</h2><button class="close-x" data-action="close-modal" aria-label="Close">&times;</button></div>' +
+    '<p class="muted">Hit all five milestones to unlock your first commercial shop chapter.</p>' +
+    '<ul style="list-style:none; padding:0;">' + st.map(function(s){
+      return '<li class="row" style="justify-content:space-between; padding:.4em 0; border-bottom:1px solid var(--border);">' +
+        '<span>' + (s.done?'✅ ':'⬜ ') + s.label + '</span>' +
+        '<span class="muted">' + (s.money?fmtMoney(Math.min(s.cur,s.target))+' / '+fmtMoney(s.target):Math.min(s.cur,s.target)+' / '+s.target) + '</span></li>';
+    }).join('') + '</ul>';
+}
+
+function showChapterComplete(){
+  openModal(
+    '<div class="modal-header"><h2>Chapter Complete: Ready for Production!</h2><button class="close-x" data-action="close-modal" aria-label="Close">&times;</button></div>' +
+    '<p>You\'ve built a real business out of a garage. Ahead of you: commercial rent, three-phase power, a used VMC, employees, and bigger contracts.</p>' +
+    '<ul>' +
+      '<li>Commercial unit with real rent &amp; utilities</li>' +
+      '<li>Three-phase power for serious machines</li>' +
+      '<li>A used VMC (vertical machining center)</li>' +
+      '<li>Your first employees</li>' +
+      '<li>Larger, higher-value contracts</li>' +
+    '</ul>' +
+    '<p class="muted">This preview is coming in a future update &mdash; for now, keep growing your garage shop!</p>' +
+    '<button type="button" class="primary" style="width:100%;" data-action="close-modal">Keep Playing</button>'
+  );
+}
+
+/* ============================== RESET / MODE ============================== */
+
+function resetModalHtml(){
+  return '<div class="modal-header"><h2>Reset Game?</h2><button class="close-x" data-action="close-modal" aria-label="Close">&times;</button></div>' +
+    '<p>This will permanently erase your saved shop and start over from $4,500. This cannot be undone.</p>' +
+    '<div class="row">' +
+      '<button type="button" data-action="close-modal">Cancel</button>' +
+      '<button type="button" class="danger" data-action="confirm-reset">Erase &amp; Reset</button>' +
+    '</div>';
+}
+
+
+/* ============================== TABS ============================== */
+
+function showTab(name){
+  var panels = document.querySelectorAll('.tab-panel');
+  for(var i=0;i<panels.length;i++) panels[i].classList.remove('active');
+  var panel = document.getElementById('tab-'+name);
+  if(panel) panel.classList.add('active');
+  var btns = document.querySelectorAll('.tab-btn');
+  for(var j=0;j<btns.length;j++){
+    btns[j].setAttribute('aria-selected', btns[j].getAttribute('data-tab')===name ? 'true':'false');
+  }
+}
+
+/* ============================== TUTORIAL ============================== */
+
+var tutorialStepIndex = 0;
+var tutorialActive = false;
+
+function tutorialSteps(){
+  var g = state.mode === 'guided';
+  return [
+    { target:'#header-bar', tab:null,
+      title:'Cash, Reputation & Speed',
+      body: g ? 'This bar shows your cash, reputation, and shop level. The 1x/2x/4x buttons speed up production once a job is running.' : 'Header bar: cash, reputation, shop tier, and 1x/2x/4x speed control for the active job.' },
+    { target:'#production-idle', tab:'production',
+      title:'MicroMill D1',
+      body: g ? 'This is your MicroMill D1. Watch its condition and your current tool\'s condition here while it\'s cutting.' : 'Machine + tool condition are tracked live here during a production cycle.' },
+    { target:'#job-board', tab:'jobs',
+      title:'Jobs Tab & Job Board',
+      body: g ? 'Browse available jobs here. New jobs appear as you finish others.' : 'Job board: 3-4 open jobs at a time, refreshed as jobs complete.' },
+    { target:'#job-board .job-card', tab:'jobs',
+      title:'Reading a Job',
+      body: g ? 'Each card lists material, quantity, tolerance, finish, deadline and pay. Tap Inspect Job for full details before accepting.' : 'Card shows material/qty/tolerance/finish/deadline/pay/capability fit at a glance.' },
+    { target:'[data-tab="production"]', tab:'jobs',
+      title:'Setup & Production',
+      body: g ? 'After you accept a job you\'ll pick a setup, then start production and watch it run on this tab.' : 'Accepting a job opens setup (presets or manual feeds/speeds/DOC), then the cycle runs here.' },
+    { target:'[data-tab="upgrades"]', tab:'upgrades',
+      title:'Upgrades',
+      body: g ? 'Spend cash here on upgrades and maintenance to unlock bigger, better-paying jobs.' : 'Buy upgrades/maintenance here: tooling, inspection, workholding, coolant, CAM.' },
+    { target:'#milestone-btn', tab:'records',
+      title:'Records & Garage Milestone',
+      body: g ? 'Track your stats here. The Move Out of the Garage button in the header shows your progress toward your next shop.' : 'Stats + job history live here; the header milestone button tracks your move-out requirements.' }
+  ];
+}
+
+function showTutorialStep(i){
+  var steps = tutorialSteps();
+  if(i<0) i=0;
+  if(i>=steps.length){ finishTutorial(); return; }
+  tutorialStepIndex = i;
+  var step = steps[i];
+  if(step.tab) showTab(step.tab);
+  document.getElementById('tutorial-overlay').classList.remove('hidden');
+  document.getElementById('tut-title').textContent = step.title;
+  document.getElementById('tut-body').textContent = step.body;
+  document.getElementById('tut-back-btn').disabled = (i===0);
+  document.getElementById('tut-next-btn').textContent = (i===steps.length-1) ? 'Finish' : 'Next';
+  requestAnimationFrame(function(){
+    var el = document.querySelector(step.target);
+    var spot = document.getElementById('tutorial-spotlight');
+    if(el){
+      var r = el.getBoundingClientRect();
+      spot.style.display='block';
+      spot.style.left = Math.max(4,r.left-6)+'px';
+      spot.style.top = Math.max(4,r.top-6)+'px';
+      spot.style.width = (r.width+12)+'px';
+      spot.style.height = (r.height+12)+'px';
+    } else {
+      spot.style.display='none';
+    }
+  });
+}
+
+function startTutorial(){ tutorialActive = true; showTutorialStep(0); }
+function tutorialNext(){ showTutorialStep(tutorialStepIndex+1); }
+function tutorialBack(){ showTutorialStep(tutorialStepIndex-1); }
+function finishTutorial(){
+  tutorialActive = false;
+  document.getElementById('tutorial-overlay').classList.add('hidden');
+  if(state){ state.tutorial.completed = true; scheduleAutosave(); }
+}
+
+/* ============================== START SCREEN ANIMATION ============================== */
+
+var startMode = 'guided';
+var chipInterval = null;
+var reducedMotion = false;
+
+function setStartMode(m){
+  startMode = m;
+  var btns = document.querySelectorAll('.mode-select button');
+  btns.forEach(function(b){ b.setAttribute('aria-pressed', b.getAttribute('data-mode')===m ? 'true':'false'); });
+  document.getElementById('mode-desc').textContent = m==='guided' ?
+    'Guided Mode gives you plain-language presets, tooltips, and warnings — great if you\'re new to machining.' :
+    'Machinist Mode hands you direct control of RPM, feed, depth of cut, radial engagement, and lubrication with full calculated readouts.';
+}
+
+function spawnChip(field){
+  var chip = document.createElement('div');
+  chip.className = 'chip';
+  chip.style.left = '48%';
+  chip.style.top = '54%';
+  var angle = rnd(-60,10) * Math.PI/180;
+  var dist = rnd(28,64);
+  var dx = Math.cos(angle)*dist;
+  var dy = -Math.abs(Math.sin(angle)*dist) - rnd(4,14);
+  chip.style.setProperty('--chip-end', 'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px)');
+  chip.style.animation = 'chip-fly ' + rnd(0.5,0.85).toFixed(2) + 's ease-out forwards';
+  field.appendChild(chip);
+  setTimeout(function(){ chip.remove(); }, 950);
+}
+function startChipAnimation(){
+  reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  if(reducedMotion) return;
+  var field = document.getElementById('chip-field');
+  if(!field) return;
+  chipInterval = setInterval(function(){
+    var startScreen = document.getElementById('start-screen');
+    if(!startScreen || startScreen.classList.contains('hidden')) return;
+    spawnChip(field);
+  }, 240);
+}
+
+
+/* ============================== GAME START / RESET ============================== */
+
+function beginGameSession(){
+  document.getElementById('start-screen').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  if(chipInterval){ clearInterval(chipInterval); chipInterval=null; }
+  if(!state.board.length) refreshBoard();
+  showTab('jobs');
+  render();
+  if(!state.tutorial.completed){
+    startTutorial();
+  }
+}
+
+function startNewGame(){
+  state = defaultState();
+  state.mode = startMode;
+  refreshBoard();
+  saveGame(false);
+  beginGameSession();
+}
+
+function continueGame(){
+  var loaded = loadGame();
+  if(!loaded){ toast('No saved shop found — starting a new one.', 'bad'); startNewGame(); return; }
+  state = loaded;
+  beginGameSession();
+}
+
+function resetGame(){
+  safeRemove(SAVE_KEY);
+  state = null;
+  closeModal();
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('start-screen').classList.remove('hidden');
+  refreshContinueButton();
+  if(!reducedMotion && !chipInterval) startChipAnimation();
+}
+
+function refreshContinueButton(){
+  var raw = safeGet(SAVE_KEY);
+  var btn = document.getElementById('continue-btn');
+  var hint = document.getElementById('continue-hint');
+  if(raw){
+    btn.disabled = false;
+    hint.textContent = 'A saved shop was found.';
+  } else {
+    btn.disabled = true;
+    hint.textContent = 'No saved shop found yet.';
+  }
+}
+
+/* ============================== EVENT DELEGATION ============================== */
+
+var busyLock = false;
+function withLock(fn){
+  if(busyLock) return;
+  busyLock = true;
+  try{ fn(); } finally { setTimeout(function(){ busyLock=false; }, 60); }
+}
+
+document.addEventListener('click', function(e){
+  var el = e.target.closest('[data-action]');
+  if(!el) return;
+  var action = el.getAttribute('data-action');
+
+  switch(action){
+    case 'set-start-mode':
+      setStartMode(el.getAttribute('data-mode'));
+      break;
+    case 'start-new-game':
+      withLock(function(){
+        var existing = safeGet(SAVE_KEY);
+        if(existing){
+          openModal(
+            '<div class="modal-header"><h2>Start a New Garage?</h2><button class="close-x" data-action="close-modal" aria-label="Close">&times;</button></div>' +
+            '<p>You already have a saved shop. Starting a new garage will overwrite it.</p>' +
+            '<div class="row"><button type="button" data-action="close-modal">Cancel</button><button type="button" class="danger" data-action="confirm-new-overwrite">Overwrite &amp; Start New</button></div>'
+          );
+        } else {
+          startNewGame();
+        }
+      });
+      break;
+    case 'confirm-new-overwrite':
+      closeModal();
+      startNewGame();
+      break;
+    case 'continue-game':
+      withLock(continueGame);
+      break;
+
+    case 'show-tab':
+      showTab(el.getAttribute('data-tab'));
+      break;
+    case 'set-speed':
+      state.speed = parseInt(el.getAttribute('data-speed'),10);
+      render();
+      break;
+    case 'open-milestone':
+      openModal(milestoneModalHtml());
+      break;
+
+    case 'open-job-detail': {
+      var jb = findBoardJob(el.getAttribute('data-id'));
+      if(jb) openModal(jobDetailHtml(jb));
+      break;
+    }
+    case 'open-bid': {
+      var jb2 = findBoardJob(el.getAttribute('data-id'));
+      if(jb2) openModal(bidModalHtml(jb2));
+      updateBidCompetitiveness(jb2);
+      break;
+    }
+    case 'submit-bid': {
+      withLock(function(){
+        var jb3 = findBoardJob(el.getAttribute('data-id'));
+        if(!jb3) return;
+        var price = parseFloat(document.getElementById('bid-price').value) || jb3.bidBaseline;
+        var deliv = parseFloat(document.getElementById('bid-delivery').value) || jb3.bidDeliveryBaselineSec;
+        var label = competitivenessLabel(price, jb3.bidBaseline, deliv, jb3.bidDeliveryBaselineSec);
+        var winProb = { 'Very Competitive':0.9, 'Competitive':0.7, 'Risky':0.4, 'Unlikely':0.12 }[label];
+        if(Math.random() < winProb){
+          closeModal();
+          openSetupModal(jb3, { payment: Math.round(price), deadlineSec: Math.round(deliv) });
+        } else {
+          closeModal();
+          state.board = state.board.filter(function(b){ return b.instanceId!==jb3.instanceId; });
+          refreshBoard();
+          render();
+          toast('Your bid was not selected this time.', 'bad');
+        }
+      });
+      break;
+    }
+    case 'accept-job': {
+      var jb4 = findBoardJob(el.getAttribute('data-id'));
+      if(!jb4) break;
+      closeModal();
+      openSetupModal(jb4, { payment: jb4.payment, deadlineSec: jb4.deadlineSec });
+      break;
+    }
+    case 'pick-preset': {
+      currentPresetChoice = el.getAttribute('data-preset');
+      var grp = el.parentElement.querySelectorAll('button');
+      grp.forEach(function(b){ b.setAttribute('aria-pressed', b===el ? 'true':'false'); });
+      refreshSetupPreview();
+      break;
+    }
+    case 'auto-recommend': {
+      var rec = recommendedSetup(pendingSetupJob);
+      document.getElementById('su-tool').value = rec.toolKey;
+      document.getElementById('su-rpm').value = rec.rpm;
+      document.getElementById('su-rpm-val').textContent = rec.rpm;
+      document.getElementById('su-feed').value = rec.feedIPM;
+      document.getElementById('su-feed-val').textContent = rec.feedIPM;
+      document.getElementById('su-axial').value = rec.axialDoc;
+      document.getElementById('su-axial-val').textContent = rec.axialDoc;
+      document.getElementById('su-radial').value = rec.radialPct;
+      document.getElementById('su-radial-val').textContent = rec.radialPct;
+      document.getElementById('su-lube').value = rec.lube;
+      refreshSetupPreview();
+      break;
+    }
+    case 'confirm-start-production': {
+      withLock(function(){
+        if(!pendingSetupJob) return;
+        var setup = readSetupFromForm(pendingSetupJob);
+        state.toolKey = setup.toolKey;
+        var ok = startProduction(pendingSetupJob, setup, pendingSetupPrice);
+        closeModal();
+        if(ok){ showTab('production'); render(); toast('Production started.', 'good'); }
+        pendingSetupJob = null; pendingSetupPrice = null;
+      });
+      break;
+    }
+
+    case 'event-bolt':
+      resolveWorkholdingClick(parseInt(el.getAttribute('data-num'),10));
+      break;
+    case 'coolant-adjust':
+      resolveCoolantAdjust(parseInt(el.getAttribute('data-delta'),10));
+      break;
+    case 'coolant-confirm':
+      resolveCoolantConfirm();
+      break;
+    case 'chatter-choice':
+      resolveChatterChoice(el.getAttribute('data-choice'));
+      break;
+    case 'ship-job':
+      withLock(function(){
+        var summary = shipActiveJob();
+        if(summary){ render(); toast('Shipped! Net profit ' + fmtMoney(summary.netProfit), 'good'); }
+      });
+      break;
+
+    case 'buy-upgrade':
+      withLock(function(){
+        var key = el.getAttribute('data-key');
+        if(purchaseUpgrade(key)){ render(); toast(UPGRADES[key].label + ' purchased.', 'good'); }
+      });
+      break;
+    case 'do-maintenance':
+      withLock(function(){
+        if(doMaintenance()){ render(); toast('Maintenance complete.', 'good'); }
+        else toast('Not enough cash for maintenance.', 'bad');
+      });
+      break;
+    case 'replace-tool':
+      withLock(function(){
+        if(replaceTool(state.toolKey)){ render(); toast('Tool replaced.', 'good'); }
+        else toast('Not enough cash to replace tool.', 'bad');
+      });
+      break;
+
+    case 'set-mode':
+      state.mode = el.getAttribute('data-mode');
+      render();
+      scheduleAutosave();
+      break;
+    case 'manual-save':
+      saveGame(true);
+      break;
+    case 'replay-tutorial':
+      startTutorial();
+      break;
+    case 'reset-game':
+      openModal(resetModalHtml());
+      break;
+    case 'confirm-reset':
+      resetGame();
+      break;
+
+    case 'tut-next': tutorialNext(); break;
+    case 'tut-back': tutorialBack(); break;
+    case 'tut-skip': finishTutorial(); break;
+
+    case 'close-modal':
+      closeModal();
+      break;
+    case 'modal-backdrop':
+      if(e.target === el) closeModal();
+      break;
+  }
+});
+
+document.addEventListener('input', function(e){
+  var t = e.target;
+  if(t.closest && t.closest('#setup-form')){
+    if(t.id==='su-rpm') document.getElementById('su-rpm-val').textContent = t.value;
+    if(t.id==='su-feed') document.getElementById('su-feed-val').textContent = t.value;
+    if(t.id==='su-axial') document.getElementById('su-axial-val').textContent = t.value;
+    if(t.id==='su-radial') document.getElementById('su-radial-val').textContent = t.value;
+    refreshSetupPreview();
+  }
+  if(t.id==='bid-price' || t.id==='bid-delivery'){
+    var idAttr = document.querySelector('[data-action="submit-bid"]');
+    if(idAttr){ var jb = findBoardJob(idAttr.getAttribute('data-id')); if(jb) updateBidCompetitiveness(jb); }
+  }
+  if(t.id==='coolant-slider'){
+    var ap = state.activeProduction;
+    if(ap && ap.pendingEvent && ap.pendingEvent.type==='coolant'){
+      ap.pendingEvent.value = parseInt(t.value,10);
+      render();
+    }
+  }
+});
+
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape'){
+    var root = document.getElementById('modal-root');
+    if(root && root.innerHTML.trim()) closeModal();
+  }
+});
+
+/* ============================== INIT ============================== */
+
+function init(){
+  setStartMode('guided');
+  startChipAnimation();
+  refreshContinueButton();
+}
+
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+
+})();
+
+</script>
+</body>
+</html>
