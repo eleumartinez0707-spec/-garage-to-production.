@@ -155,6 +155,16 @@ table th, table td{ text-align:left; padding:.35em .4em; border-bottom:1px solid
 .modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:flex-end; justify-content:center; z-index:50; padding:0; }
 @media (min-width:640px){ .modal-backdrop{ align-items:center; padding:1em; } }
 .modal{ background:var(--panel); border:1px solid var(--border); border-radius:var(--radius) var(--radius) 0 0; max-width:640px; width:100%; max-height:92vh; overflow-y:auto; padding:1.1em; overscroll-behavior:contain; }
+/* Manufacturing modal: stage tabs wrap instead of clipping, and the panel
+   uses more of a phone's width for the part preview. */
+#mfg-tabs{ display:flex; flex-wrap:wrap; gap:.3em; margin-bottom:.6em; }
+#mfg-tabs button{ flex:1 1 auto; min-width:0; font-size:.76rem; padding:.5em .35em; white-space:nowrap; }
+.mfg-modal #mfg-mill{ max-width:100% !important; }
+@media (max-width:560px){
+  .modal.mfg-modal{ padding:.7em; }
+  .mfg-modal .modal-header h2{ font-size:1.15rem; }
+  #mfg-tabs button{ font-size:.72rem; padding:.5em .25em; }
+}
 @media (min-width:640px){ .modal{ border-radius:var(--radius);} }
 body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behavior:none; touch-action:none; }
 .modal-header{ display:flex; justify-content:space-between; align-items:center; gap:.5em; margin-bottom:.5em; }
@@ -1474,10 +1484,10 @@ function renderMfgModalContent(){
   mfgModalRenderSig = sig;
   mfgMillSvgSig = '';
 
-  var tabsHtml = '<div class="row" id="mfg-tabs" role="tablist" style="flex-wrap:nowrap; overflow-x:auto; margin-bottom:.6em;">' +
+  var tabsHtml = '<div id="mfg-tabs" role="tablist">' +
     MFG_TABS.map(function(t, i){
       var locked = i > unlockedIdx;
-      return '<button type="button" data-action="mfg-tab" data-tab="' + t.key + '" aria-pressed="' + (mfgActiveTab===t.key) + '" ' + (locked?'disabled':'') + ' style="flex:0 0 auto; font-size:.78rem; padding:.5em .7em;">' + t.label + '</button>';
+      return '<button type="button" data-action="mfg-tab" data-tab="' + t.key + '" aria-pressed="' + (mfgActiveTab===t.key) + '" ' + (locked?'disabled':'') + '>' + t.label + '</button>';
     }).join('') + '</div>';
 
   var body = mfgTabBodyHtml(tmpl, key, stageKey);
