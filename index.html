@@ -1639,6 +1639,70 @@ function mfgOrientationHtml(tmpl, key, editable){
   '</div>';
 }
 
+/* ============================================================
+   MINIGAME: FEATURE ASSIGNMENT
+   Tap each feature to place it in Operation 1 or Operation 2.
+   A feature can only really be cut in the operation whose face
+   matches it -- placing it in the wrong bin is allowed (the game
+   doesn't lock players out) but is scored and explained, since
+   the "correct" answer follows directly from which face is up
+   in each setup, not from an arbitrary rule.
+   ============================================================ */
+
+function mfgDefaultFeatureAssignment(tmpl){
+  var map = {};
+  tmpl.features.forEach(function(f){ map[f.id] = f.setupMin; });
+  return map;
+}
+
+function mfgFeatureOpFace(tmpl, plan, opN){
+  var setup1Face = plan.orientation || tmpl.setupDefs[0].faceUp;
+  if(opN === tmpl.setupDefs[0].n) return setup1Face;
+  var faces = mfgOrientationFaces(tmpl);
+  var other = faces.filter(function(f){ return f !== setup1Face; })[0];
+  return other || tmpl.setupDefs[1].faceUp;
+}
+
+function mfgScoreFeatureAssignment(tmpl, plan){
+  var assign = plan.featureAssignment || mfgDefaultFeatureAssignment(tmpl);
+  var correct = 0;
+  tmpl.features.forEach(function(f){
+    var opN = assign[f.id] || f.setupMin;
+    if(f.face === mfgFeatureOpFace(tmpl, plan, opN)) correct++;
+  });
+  return tmpl.features.length ? correct / tmpl.features.length : 0.7;
+}
+
+function mfgFeatureAssignmentHtml(tmpl, key, editable){
+  var prep = state.mfgPrep[key];
+  var plan = prep ? prep.plan : (state.mfgActive ? state.mfgActive.plan : mfgComputeDefaultPlan(tmpl));
+  var assign = plan.featureAssignment || mfgDefaultFeatureAssignment(tmpl);
+
+  function pillFor(f){
+    var opN = assign[f.id] || f.setupMin;
+    var valid = f.face === mfgFeatureOpFace(tmpl, plan, opN);
+    return '<button type="button" class="pill ' + (valid?'good':'bad') + '" style="cursor:' + (editable?'pointer':'default') + ';" ' +
+      (editable ? 'data-action="mfg-feature-toggle" data-key="' + key + '" data-feature="' + f.id + '"' : 'disabled') + '>' +
+      f.label + (valid?'':' &#9888;') + '</button>';
+  }
+
+  var op1 = tmpl.features.filter(function(f){ return (assign[f.id]||f.setupMin) === tmpl.setupDefs[0].n; });
+  var op2 = tmpl.features.filter(function(f){ return (assign[f.id]||f.setupMin) === tmpl.setupDefs[1].n; });
+
+  var quality = mfgScoreFeatureAssignment(tmpl, plan);
+  var feedback = quality >= 0.99 ? { cls:'good', text:'Every feature is assigned to an operation that can actually reach it.' } :
+    { cls:'warn', text:'Some features are assigned to an operation that can\'t reach them yet -- tap a flagged feature to move it.' };
+
+  return '<div class="minigame">' +
+    '<p class="minigame-instruction">Assign each feature to the operation that can reach it.</p>' +
+    '<div class="row" style="align-items:flex-start; gap:1em;">' +
+      '<div style="flex:1;"><h4 style="margin:.2em 0; font-size:.85rem;">Operation 1</h4><div>' + (op1.map(pillFor).join('') || '<span class="muted">None</span>') + '</div></div>' +
+      '<div style="flex:1;"><h4 style="margin:.2em 0; font-size:.85rem;">Operation 2</h4><div>' + (op2.map(pillFor).join('') || '<span class="muted">None</span>') + '</div></div>' +
+    '</div>' +
+    '<div class="minigame-result"><span class="pill ' + feedback.cls + '">' + feedback.text + '</span></div>' +
+  '</div>';
+}
+
 /* ---- Process Plan tab ---- */
 function mfgPlanTabHtml(tmpl, key){
   var prep = state.mfgPrep[key];
@@ -1652,6 +1716,7 @@ function mfgPlanTabHtml(tmpl, key){
       tmpl.stockOptions.map(function(s){ return '<option value="'+s.id+'"' + (plan.stockId===s.id?' selected':'') + '>' + s.label + '</option>'; }).join('') + '</select>';
 
   var orientationHtml = key === 'lBracket' ? mfgOrientationHtml(tmpl, key, editable) : '';
+  var featureAssignHtml = key === 'lBracket' ? mfgFeatureAssignmentHtml(tmpl, key, editable) : '';
 
   var setupsHtml = tmpl.setupDefs.map(function(sd, idx){
     var s = plan.setups[idx];
@@ -1674,7 +1739,7 @@ function mfgPlanTabHtml(tmpl, key){
     return '<li style="' + (w.level==='bad'?'':'background:rgba(255,204,51,.12); border-color:var(--warn); color:#ffe9a8;') + '">' + w.text + '</li>';
   }).join('') + '</ul>' : '<p class="pill good">No plan warnings.</p>';
 
-  return stockHtml + orientationHtml + setupsHtml + '<h4 class="section-title">Plan Warnings</h4>' + warnHtml +
+  return stockHtml + orientationHtml + featureAssignHtml + setupsHtml + '<h4 class="section-title">Plan Warnings</h4>' + warnHtml +
     (editable ? '<button type="button" class="primary" style="width:100%; margin-top:.8em;" data-action="mfg-advance" data-key="' + key + '" data-to="programming-start">Confirm Plan &mdash; Begin Programming</button>' : '');
 }
 
@@ -3598,6 +3663,26 @@ document.addEventListener('click', function(e){
         var orTmpl = MFG_JOBS[orKey];
         orPrep.scores = Object.assign(orPrep.scores || mfgDefaultScores(), {
           orientationQuality: mfgScoreOrientation(orTmpl, orFace)
+        });
+        scheduleAutosave();
+      }
+      renderMfgModalContent();
+      break;
+    }
+    case 'mfg-feature-toggle': {
+      var faKey = el.getAttribute('data-key');
+      var faPrep = state.mfgPrep[faKey];
+      if(faPrep && faPrep.stage === 'plan'){
+        var faTmpl = MFG_JOBS[faKey];
+        var faId = el.getAttribute('data-feature');
+        var faAssign = faPrep.plan.featureAssignment || mfgDefaultFeatureAssignment(faTmpl);
+        var faFeature = faTmpl.features.filter(function(f){ return f.id === faId; })[0];
+        var faCur = faAssign[faId] || faFeature.setupMin;
+        var faOther = faTmpl.setupDefs.filter(function(sd){ return sd.n !== faCur; })[0];
+        faAssign[faId] = faOther.n;
+        faPrep.plan.featureAssignment = faAssign;
+        faPrep.scores = Object.assign(faPrep.scores || mfgDefaultScores(), {
+          featureAssignmentQuality: mfgScoreFeatureAssignment(faTmpl, faPrep.plan)
         });
         scheduleAutosave();
       }
