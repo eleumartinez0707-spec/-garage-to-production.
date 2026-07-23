@@ -728,6 +728,31 @@ function polyPath(pts, scaleX, scaleY, ox, oy, flipY, boxH){
   }).join(' L') + ' Z';
 }
 
+/* Cabinet-style pseudo-3D extrusion of a 2D profile so a flat silhouette
+   reads as a solid part. Depth goes up-and-right on screen; for each profile
+   edge whose outward normal faces up we draw a lit top face, and whose normal
+   faces right we draw a shaded side face, then the front face on top. profile
+   is CCW in y-up coords (outward normal = (edy, -edx)). */
+function buildExtrudedProfileSVG(profilePts, scale, ox, oy, boxH, pal, depthPx){
+  depthPx = depthPx || 12;
+  var dvx = depthPx, dvy = -depthPx;
+  function S(p){ return [ox + p[0]*scale, oy + boxH - p[1]*scale]; }
+  var topFaces = '', sideFaces = '', n = profilePts.length;
+  for(var i=0;i<n;i++){
+    var a = profilePts[i], b = profilePts[(i+1)%n];
+    var edx = b[0]-a[0], edy = b[1]-a[1];
+    var nx = edy, ny = -edx;
+    var A = S(a), B = S(b);
+    var quad = 'M'+A[0].toFixed(1)+','+A[1].toFixed(1)+' L'+B[0].toFixed(1)+','+B[1].toFixed(1)+
+      ' L'+(B[0]+dvx).toFixed(1)+','+(B[1]+dvy).toFixed(1)+' L'+(A[0]+dvx).toFixed(1)+','+(A[1]+dvy).toFixed(1)+' Z';
+    if(ny > 0.001) topFaces += '<path d="'+quad+'" fill="'+pal.top+'" stroke="'+pal.shadowLine+'" stroke-width="0.5"/>';
+    else if(nx > 0.001) sideFaces += '<path d="'+quad+'" fill="'+pal.side+'" stroke="'+pal.shadowLine+'" stroke-width="0.5"/>';
+  }
+  var frontPath = polyPath(profilePts, scale, scale, ox, oy, true, boxH);
+  return sideFaces + topFaces +
+    '<path d="'+frontPath+'" fill="'+pal.front+'" stroke="'+pal.shadowLine+'" stroke-width="1.2"/>';
+}
+
 /* ---- Blueprint view: cyanotype-style engineering drawing, generated from job data ---- */
 function buildBlueprintSVG(tmpl){
   var top = { w: tmpl.finished.length, h: tmpl.finished.width };
@@ -801,8 +826,9 @@ function buildPartVisualSVG(tmpl, viewMode, ctx){
 
   var boxW = Math.max.apply(null, profilePts.map(function(p){return p[0];}));
   var boxH = Math.max.apply(null, profilePts.map(function(p){return p[1];}));
-  var scale = fitScale(boxW, boxH, 150, 90);
-  var ox = 25, oy = 20;
+  var depthPx = 13;
+  var scale = fitScale(boxW, boxH, 150 - depthPx, 84 - depthPx);
+  var ox = 24, oy = 30;
   var pxW = boxW*scale, pxH = boxH*scale;
 
   var svg = '<svg viewBox="0 0 200 150" shape-rendering="crispEdges" font-family="Courier New,monospace">';
@@ -814,20 +840,22 @@ function buildPartVisualSVG(tmpl, viewMode, ctx){
     svg += '<text x="'+((vx1+vx2)/2).toFixed(1)+'" y="'+(oy+pxH+22)+'" fill="#8a929e" font-size="6" text-anchor="middle">VISE</text>';
   }
 
-  svg += '<path d="' + polyPath(profilePts, scale, scale, ox, oy, true, pxH) + '" fill="' + pal.front + '" stroke="' + pal.side + '" stroke-width="1.5"/>';
-  svg += '<path d="M' + ox + ',' + oy + ' L' + (ox+pxW) + ',' + oy + '" stroke="' + pal.highlightLine + '" stroke-width="1"/>';
+  svg += buildExtrudedProfileSVG(profilePts, scale, ox, oy, pxH, pal, depthPx);
 
   if(viewMode === 'operation'){
+    // holes/pockets drawn on the extruded top face (offset up-right by the depth)
+    var dvx = depthPx, dvy = -depthPx;
     tmpl.features.forEach(function(f){
       if(f.type !== 'hole' && f.type !== 'tappedHole' && f.type !== 'pocket') return;
       var done = !!completed[f.id];
-      var fx = ox + (f.x||0)*scale;
+      var topY = oy + pxH - boxH*scale; // screen y of the top of the front face
+      var fx = ox + (f.x||0)*scale + dvx*0.5;
+      var fy = topY + dvy*0.5;
       if(f.type === 'pocket'){
-        var fy = oy + pxH - ((f.y||0)+(f.height||0))*scale*0 + 4; /* pockets shown as a small top-face marker */
-        svg += '<rect x="'+(fx).toFixed(1)+'" y="'+(oy-2)+'" width="'+Math.max((f.width||8)*scale*0.4,4)+'" height="4" fill="'+(done?'#0d0d0c':pal.cutNotch)+'" stroke="'+pal.stepShadow+'" stroke-width="0.5"/>';
+        svg += '<rect x="'+fx.toFixed(1)+'" y="'+fy.toFixed(1)+'" width="'+Math.max((f.width||8)*scale*0.4,4)+'" height="4" fill="'+(done?'#0d0d0c':pal.cutNotch)+'" stroke="'+pal.stepShadow+'" stroke-width="0.5"/>';
       } else {
         var r = Math.max((f.diameter/2)*scale, 2.5);
-        svg += '<circle cx="'+fx.toFixed(1)+'" cy="'+(oy-3)+'" r="'+r.toFixed(1)+'" fill="'+(done?'#0d0d0c':pal.cutNotch)+'" stroke="'+pal.stepShadow+'" stroke-width="0.6"/>';
+        svg += '<ellipse cx="'+fx.toFixed(1)+'" cy="'+fy.toFixed(1)+'" rx="'+r.toFixed(1)+'" ry="'+(r*0.6).toFixed(1)+'" fill="'+(done?'#0d0d0c':pal.cutNotch)+'" stroke="'+pal.stepShadow+'" stroke-width="0.6"/>';
       }
     });
   }
@@ -873,11 +901,23 @@ function mfgStartPrep(tmplKey){
   if(state.mfgPrep[tmplKey]) return state.mfgPrep[tmplKey];
   var tmpl = MFG_JOBS[tmplKey];
   var plan = mfgComputeDefaultPlan(tmpl);
+  var scores = mfgDefaultScores();
+  // Seed the part at an off starting spot and score it from there, so the
+  // stock-placement minigame begins with a genuine task rather than the
+  // answer already in place.
+  var stockOpt0 = mfgStockOption(tmpl, plan.stockId);
+  var startPlace = mfgStartingStockPlacement(tmpl, stockOpt0);
+  plan.stockPlacement = startPlace;
+  var ps0 = mfgScoreStockPlacement(tmpl, stockOpt0, startPlace.dx, startPlace.dy);
+  scores.stockPlacementScore = ps0.stockPlacementScore;
+  scores.materialEfficiency = ps0.materialEfficiency;
+  scores.availableGrip = ps0.availableGrip;
+  scores.op2HoldingQuality = ps0.op2HoldingQuality;
   var prep = {
     instanceId: uid(), tmplKey: tmplKey, stage: 'blueprint',
     plan: plan, program: mfgDefaultProgram(tmpl),
     programTimeRemaining: 0, programTotalSeconds: 0,
-    scores: mfgDefaultScores()
+    scores: scores
   };
   state.mfgPrep[tmplKey] = prep;
   scheduleAutosave();
@@ -1431,6 +1471,13 @@ function mfgDefaultStockPlacement(tmpl, stockOpt){
   var m = mfgStockMargins(tmpl, stockOpt);
   return { dx: m.marginXmax*0.5, dy: m.marginYmax*0.55 };
 }
+/* Deliberately-off starting spot: the part sits low and toward one side, so
+   there is real work to do (drag it up for vise grip, and toward center).
+   The Clean Hands ghost outline shows where it should end up. */
+function mfgStartingStockPlacement(tmpl, stockOpt){
+  var m = mfgStockMargins(tmpl, stockOpt);
+  return { dx: m.marginXmax*0.14, dy: m.marginYmax*0.12 };
+}
 
 function mfgTrapezoidScore(x, loFloor, loRamp, hiRamp, hiFloor){
   if(x <= loFloor || x >= hiFloor) return 0.2;
@@ -1535,7 +1582,7 @@ function mfgStockPlacementHtml(tmpl, key, editable){
     stockChoiceHtml +
     svg +
     '<div class="minigame-controls">' +
-      (editable ? '<button type="button" data-action="mfg-stock-reset" data-key="' + key + '">Reset to Recommended</button>' : '') +
+      (editable ? '<button type="button" data-action="mfg-stock-reset" data-key="' + key + '">Reset</button>' : '') +
       (clean ? '<button type="button" data-action="mfg-stock-hint" data-key="' + key + '">' + (mfgStockHintOpen?'Hide Hint':'Show Hint') + '</button>' : '') +
     '</div>' +
     (mfgStockHintOpen ? hintHtml : '') +
@@ -2924,7 +2971,7 @@ function closeModal(){
 
 function render(){
   if(!state) return;
-  try{ window.__debugGame = state; window.__debugBuildMillScene = buildMillScene; }catch(e){}
+  try{ window.__debugGame = state; window.__debugBuildMillScene = buildMillScene; window.__debugBuildPartVisual = buildPartVisualSVG; window.__debugMfgJobs = MFG_JOBS; }catch(e){}
   document.getElementById('stat-cash').textContent = fmtMoney(state.cash);
   document.getElementById('stat-rep').textContent = Math.round(state.reputation);
   document.getElementById('stat-shop').textContent = state.shopLevel;
@@ -4058,8 +4105,8 @@ document.addEventListener('click', function(e){
         scPrep.plan.stockPlacement = null;
         var scTmpl = MFG_JOBS[scKey];
         var scStockOpt = mfgStockOption(scTmpl, scPrep.plan.stockId);
-        var scDefault = mfgDefaultStockPlacement(scTmpl, scStockOpt);
-        mfgCommitStockPlacement(scKey, scDefault.dx, scDefault.dy);
+        var scStart = mfgStartingStockPlacement(scTmpl, scStockOpt);
+        mfgCommitStockPlacement(scKey, scStart.dx, scStart.dy);
       }
       renderMfgModalContent();
       break;
@@ -4070,8 +4117,8 @@ document.addEventListener('click', function(e){
       if(srPrep && srPrep.stage === 'plan'){
         var srTmpl = MFG_JOBS[srKey];
         var srStockOpt = mfgStockOption(srTmpl, srPrep.plan.stockId);
-        var srDefault = mfgDefaultStockPlacement(srTmpl, srStockOpt);
-        mfgCommitStockPlacement(srKey, srDefault.dx, srDefault.dy);
+        var srStart = mfgStartingStockPlacement(srTmpl, srStockOpt);
+        mfgCommitStockPlacement(srKey, srStart.dx, srStart.dy);
       }
       renderMfgModalContent();
       break;
