@@ -216,7 +216,11 @@ table th, table td{ text-align:left; padding:.35em .4em; border-bottom:1px solid
 
   <main>
     <section id="tab-jobs" class="tab-panel active" aria-label="Job board">
-      <h2>Job Board</h2>
+      <h2>Blueprint Jobs</h2>
+      <p class="muted">Full manufacturing jobs: review the blueprint, plan the process, program it, prove a first article, then let it run.</p>
+      <div class="job-grid" id="blueprint-jobs"></div>
+
+      <h2 class="section-title">Job Board</h2>
       <p class="muted">Review available work and accept a job to configure setup.</p>
       <div class="job-grid" id="job-board"></div>
     </section>
@@ -225,7 +229,8 @@ table th, table td{ text-align:left; padding:.35em .4em; border-bottom:1px solid
       <div id="production-idle" class="card">
         <h2>MicroMill D1</h2>
         <div class="mill-mini" aria-hidden="true" id="mill-mini-idle"></div>
-        <p class="muted">No active job. Accept a job from the Jobs tab to begin production.</p>
+        <p class="muted" id="production-idle-msg">No active job. Accept a job from the Jobs tab to begin production.</p>
+        <button type="button" class="secondary hidden" id="production-idle-mfg-btn" data-action="open-mfg-job">Open Blueprint Job</button>
       </div>
       <div id="production-active" class="hidden"></div>
     </section>
@@ -407,6 +412,1121 @@ var UPGRADES = {
 
 var MILESTONE = { cash:25000, reputation:100, jobsCompleted:10, tier2Completed:2, needsInspectionPackage:true };
 
+/* ============================================================
+   DETAILED MANUFACTURING SYSTEM
+   Additive subsystem: blueprint -> plan -> program -> setup ->
+   first article -> inspect -> correct -> approve -> idle production.
+   Shares the one physical machine with the simple job flow via
+   machineBusy(), but never touches state.activeProduction's shape --
+   fully separate state (state.mfgPrep / state.mfgActive) so the
+   existing tested simple flow is untouched.
+   ============================================================ */
+
+var WORKHOLDING = {
+  standardJaws: { key:'standardJaws', label:'Standard Vise Jaws',      rigidity:0.70, marksRisk:0.35, unlockedBy:null },
+  parallels:    { key:'parallels',    label:'Vise + Parallels',        rigidity:0.78, marksRisk:0.30, unlockedBy:null },
+  clamps:       { key:'clamps',       label:'Toe Clamps',              rigidity:0.60, marksRisk:0.10, unlockedBy:null },
+  softJaws:     { key:'softJaws',     label:'Soft Jaws',               rigidity:0.85, marksRisk:0.04, unlockedBy:'workholding' },
+  fixturePlate: { key:'fixturePlate', label:'Fixture Plate',           rigidity:0.92, marksRisk:0.02, unlockedBy:'workholding' },
+  tabs:         { key:'tabs',         label:'Machined Tabs',           rigidity:0.95, marksRisk:0.00, unlockedBy:null }
+};
+
+var OP_STEP_LABELS = {
+  face:'Face', roughContour:'Rough Contour', finishContour:'Finish Contour',
+  roughPocket:'Rough Pocket', finishPocket:'Finish Pocket', spotDrill:'Spot Drill',
+  drill:'Drill', bore:'Bore', ream:'Ream', tap:'Tap', chamfer:'Chamfer', deburr:'Deburr'
+};
+
+/* Which op steps a feature type typically needs, in order. */
+var FEATURE_DEFAULT_STEPS = {
+  face: ['face'],
+  contour: ['roughContour','finishContour'],
+  pocket: ['roughPocket','finishPocket'],
+  hole: ['spotDrill','drill'],
+  tappedHole: ['spotDrill','drill','tap'],
+  chamfer: ['chamfer'],
+  deburr: ['deburr']
+};
+
+/* Base seconds per op-step at 1x, used for the cycle-time breakdown display
+   and the actual first-article / production timers. Independent of the
+   simple flow's machining model. */
+var OP_STEP_BASE_SECONDS = {
+  face:10, roughContour:14, finishContour:10, roughPocket:16, finishPocket:11,
+  spotDrill:4, drill:6, bore:9, ream:7, tap:8, chamfer:5, deburr:4
+};
+
+function mfgFeature(def){
+  return Object.assign({ steps: FEATURE_DEFAULT_STEPS[def.type] || ['face'] }, def);
+}
+
+var MFG_JOBS = {
+
+  flatPlate: {
+    id:'mfg_flatPlate', partNumber:'FP-104', part:'Flat Mounting Plate',
+    customer:'Riverside Robotics', materialKey:'aluminum', qty:12, dueSec:900,
+    basePayment:260, difficulty:1, minRep:0,
+    stockOptions:[
+      { id:'snug', label:'150 x 100 x 8 mm (snug)', length:150, width:100, thickness:8, costMult:1.0 },
+      { id:'oversize', label:'160 x 110 x 10 mm (oversize)', length:160, width:110, thickness:10, costMult:1.35 }
+    ],
+    recommendedStockId:'snug',
+    materialCostBase:4,
+    finished:{ length:150, width:100, thickness:8 },
+    setupsRequired:1,
+    setupDefs:[
+      { n:1, label:'Setup 1 — Top Face', faceUp:'top', recommendedWorkholding:['standardJaws','parallels'] }
+    ],
+    features:[
+      mfgFeature({ id:'f1', type:'face', face:'top', setupMin:1, label:'Top face' }),
+      mfgFeature({ id:'h1', type:'hole', face:'top', setupMin:1, x:15, y:15, diameter:6.5, through:true, label:'Corner hole A' }),
+      mfgFeature({ id:'h2', type:'hole', face:'top', setupMin:1, x:135, y:15, diameter:6.5, through:true, label:'Corner hole B' }),
+      mfgFeature({ id:'h3', type:'hole', face:'top', setupMin:1, x:15, y:85, diameter:6.5, through:true, label:'Corner hole C' }),
+      mfgFeature({ id:'h4', type:'hole', face:'top', setupMin:1, x:135, y:85, diameter:6.5, through:true, label:'Corner hole D' }),
+      mfgFeature({ id:'ch1', type:'chamfer', face:'top', setupMin:1, size:1, label:'Edge break, all around' })
+    ],
+    inspectionDims:[
+      { id:'dLen', label:'Overall length', nominal:150, tol:0.13, unit:'mm' },
+      { id:'dWid', label:'Overall width', nominal:100, tol:0.13, unit:'mm' },
+      { id:'dHoleDia', label:'Hole diameter', nominal:6.5, tol:0.08, unit:'mm' },
+      { id:'dHolePos', label:'Hole position from edge', nominal:15, tol:0.10, unit:'mm' }
+    ],
+    baseProgramMinutes:2,
+    toolKey:'em14'
+  },
+
+  pocketBlock: {
+    id:'mfg_pocketBlock', partNumber:'PB-212', part:'Pocketed Rectangular Block',
+    customer:'Coastal Automation', materialKey:'aluminum', qty:8, dueSec:1100,
+    basePayment:340, difficulty:2, minRep:0,
+    stockOptions:[
+      { id:'snug', label:'120 x 80 x 25 mm (snug)', length:120, width:80, thickness:25, costMult:1.0 },
+      { id:'oversize', label:'130 x 90 x 28 mm (oversize)', length:130, width:90, thickness:28, costMult:1.3 }
+    ],
+    recommendedStockId:'snug',
+    materialCostBase:9,
+    finished:{ length:120, width:80, thickness:25 },
+    setupsRequired:1,
+    setupDefs:[
+      { n:1, label:'Setup 1 — Top Face', faceUp:'top', recommendedWorkholding:['standardJaws','parallels'] }
+    ],
+    features:[
+      mfgFeature({ id:'f1', type:'face', face:'top', setupMin:1, label:'Top face' }),
+      mfgFeature({ id:'p1', type:'pocket', face:'top', setupMin:1, x:30, y:20, width:60, height:40, depth:10, label:'Center pocket' }),
+      mfgFeature({ id:'h1', type:'hole', face:'top', setupMin:1, x:12, y:12, diameter:5, depth:14, through:false, label:'Mount hole A' }),
+      mfgFeature({ id:'h2', type:'hole', face:'top', setupMin:1, x:108, y:12, diameter:5, depth:14, through:false, label:'Mount hole B' }),
+      mfgFeature({ id:'h3', type:'tappedHole', face:'top', setupMin:1, x:12, y:68, diameter:5, depth:14, tap:'M6', label:'Tapped hole C (M6)' }),
+      mfgFeature({ id:'h4', type:'tappedHole', face:'top', setupMin:1, x:108, y:68, diameter:5, depth:14, tap:'M6', label:'Tapped hole D (M6)' }),
+      mfgFeature({ id:'ch1', type:'chamfer', face:'top', setupMin:1, size:0.5, label:'Pocket edge break' })
+    ],
+    inspectionDims:[
+      { id:'dPLen', label:'Pocket length', nominal:60, tol:0.10, unit:'mm' },
+      { id:'dPWid', label:'Pocket width', nominal:40, tol:0.10, unit:'mm' },
+      { id:'dPDep', label:'Pocket depth', nominal:10, tol:0.08, unit:'mm' },
+      { id:'dHolePos', label:'Hole position from edge', nominal:12, tol:0.10, unit:'mm' }
+    ],
+    baseProgramMinutes:3,
+    toolKey:'em14'
+  },
+
+  lBracket: {
+    id:'mfg_lBracket', partNumber:'LB-301', part:'L Bracket', tutorial:true,
+    customer:'Summit Fabrication', materialKey:'aluminum', qty:6, dueSec:1500,
+    basePayment:420, difficulty:3, minRep:0,
+    stockOptions:[
+      { id:'snug', label:'90 x 55 x 55 mm (snug)', length:90, width:55, thickness:55, costMult:1.0 },
+      { id:'oversize', label:'100 x 60 x 60 mm (oversize)', length:100, width:60, thickness:60, costMult:1.3 }
+    ],
+    recommendedStockId:'snug',
+    materialCostBase:14,
+    finished:{ length:80, width:50, thickness:50, legWidth:25, shelfHeight:20 },
+    setupsRequired:2,
+    setupDefs:[
+      { n:1, label:'Setup 1 — Top Face (stock gripped from the bottom)', faceUp:'top',
+        recommendedWorkholding:['standardJaws','parallels'],
+        note:'The vise grips the lower portion of the stock. Only material above the jaws is reachable this setup.' },
+      { n:2, label:'Setup 2 — Flip & Finish (grip the finished top section)', faceUp:'bottom',
+        recommendedWorkholding:['clamps','softJaws','fixturePlate'], riskyWorkholding:['standardJaws'],
+        note:'You are now gripping the surface you just finished. Standard jaws can mark it -- soft jaws or a fixture plate protect the finish.' }
+    ],
+    features:[
+      mfgFeature({ id:'f1', type:'face', face:'top', setupMin:1, label:'Top face' }),
+      mfgFeature({ id:'c1', type:'contour', face:'top', setupMin:1, label:'L-step relief (upper contour)' }),
+      mfgFeature({ id:'h1', type:'hole', face:'top', setupMin:1, x:12, y:15, diameter:8, through:true, label:'Leg mounting hole A' }),
+      mfgFeature({ id:'h2', type:'hole', face:'top', setupMin:1, x:12, y:35, diameter:8, through:true, label:'Leg mounting hole B' }),
+      mfgFeature({ id:'ch1', type:'chamfer', face:'top', setupMin:1, size:1, label:'Top edge break' }),
+      mfgFeature({ id:'f2', type:'face', face:'bottom', setupMin:2, label:'Bottom face -- removes remaining stock held by the vise in Setup 1' }),
+      mfgFeature({ id:'h3', type:'hole', face:'bottom', setupMin:2, x:55, y:15, diameter:6, through:true, label:'Shelf mounting hole C' }),
+      mfgFeature({ id:'h4', type:'hole', face:'bottom', setupMin:2, x:55, y:35, diameter:6, through:true, label:'Shelf mounting hole D' }),
+      mfgFeature({ id:'ch2', type:'chamfer', face:'bottom', setupMin:2, size:1, label:'Bottom edge break' })
+    ],
+    inspectionDims:[
+      { id:'dHeight', label:'Overall height (tall leg)', nominal:50, tol:0.15, unit:'mm' },
+      { id:'dShelf', label:'Shelf height', nominal:20, tol:0.12, unit:'mm' },
+      { id:'dLegW', label:'Leg width', nominal:25, tol:0.12, unit:'mm' },
+      { id:'dHolePos', label:'Hole A position from end', nominal:12, tol:0.10, unit:'mm' }
+    ],
+    baseProgramMinutes:4,
+    toolKey:'em14'
+  }
+};
+
+/* ---- Manufacturing rule engine: warnings for a player-built plan ---- */
+function evaluateMfgPlan(tmpl, plan){
+  var warnings = [];
+  var stock = tmpl.stockOptions.find(function(s){ return s.id === plan.stockId; }) || tmpl.stockOptions[0];
+
+  if(stock.length < tmpl.finished.length || stock.width < tmpl.finished.width || stock.thickness < tmpl.finished.thickness){
+    warnings.push({ level:'bad', text:'Stock is too small to yield the finished part.' });
+  }
+  if(stock.costMult >= 1.3){
+    warnings.push({ level:'warn', text:'Oversize stock increases material cost and cycle time.' });
+  }
+
+  var setupCount = tmpl.setupsRequired;
+  if((plan.setups||[]).length < setupCount){
+    warnings.push({ level:'bad', text:'This part needs ' + setupCount + ' setup(s) to reach every feature -- your plan has fewer.' });
+  }
+
+  (plan.setups||[]).forEach(function(s, idx){
+    var setupDef = tmpl.setupDefs[idx];
+    if(!setupDef) return;
+    var wh = WORKHOLDING[s.workholdingId];
+    if(!wh) return;
+    if(setupDef.riskyWorkholding && setupDef.riskyWorkholding.indexOf(s.workholdingId) !== -1){
+      warnings.push({ level:'bad', text:'Setup ' + setupDef.n + ': ' + wh.label + ' risks marking or moving the already-finished surface.' });
+    } else if(setupDef.recommendedWorkholding.indexOf(s.workholdingId) === -1){
+      warnings.push({ level:'warn', text:'Setup ' + setupDef.n + ': ' + wh.label + ' is not the recommended workholding for this setup.' });
+    }
+    var assigned = s.featureIds || [];
+    assigned.forEach(function(fid){
+      var feat = tmpl.features.find(function(f){ return f.id === fid; });
+      if(!feat) return;
+      if(feat.setupMin > setupDef.n){
+        warnings.push({ level:'bad', text:'"' + feat.label + '" is not accessible in Setup ' + setupDef.n + ' -- it needs Setup ' + feat.setupMin + ' or later.' });
+      }
+    });
+  });
+
+  var allAssigned = {};
+  (plan.setups||[]).forEach(function(s){ (s.featureIds||[]).forEach(function(fid){ allAssigned[fid] = true; }); });
+  tmpl.features.forEach(function(f){
+    if(!allAssigned[f.id]) warnings.push({ level:'warn', text:'"' + f.label + '" is not assigned to any setup yet.' });
+  });
+
+  return warnings;
+}
+
+/* ---- Geometry helpers shared by blueprint + part-visual rendering ---- */
+function fitScale(w, h, maxW, maxH){ return Math.min(maxW / w, maxH / h, 4); }
+
+function mfgFinishedProfile(tmpl){
+  var f = tmpl.finished;
+  if(f.legWidth != null && f.shelfHeight != null){
+    return [[0,0],[f.length,0],[f.length,f.shelfHeight],[f.legWidth,f.shelfHeight],[f.legWidth,f.thickness],[0,f.thickness]];
+  }
+  return [[0,0],[f.length,0],[f.length,f.thickness],[0,f.thickness]];
+}
+function mfgStockOption(tmpl, stockId){
+  return tmpl.stockOptions.find(function(s){ return s.id === stockId; }) || tmpl.stockOptions[tmpl.stockOptions.length-1];
+}
+function mfgStockProfile(tmpl, stockId){
+  var s = mfgStockOption(tmpl, stockId);
+  return [[0,0],[s.length,0],[s.length,s.thickness],[0,s.thickness]];
+}
+function mfgCurrentProfile(tmpl, stockId, completedFeatureIds){
+  var affects = tmpl.features.some(function(f){ return (f.type === 'face' || f.type === 'contour') && completedFeatureIds && completedFeatureIds[f.id]; });
+  return affects ? mfgFinishedProfile(tmpl) : mfgStockProfile(tmpl, stockId);
+}
+function polyPath(pts, scaleX, scaleY, ox, oy, flipY, boxH){
+  return 'M' + pts.map(function(p){
+    var x = ox + p[0]*scaleX;
+    var y = flipY ? (oy + boxH - p[1]*scaleY) : (oy + p[1]*scaleY);
+    return x.toFixed(1) + ',' + y.toFixed(1);
+  }).join(' L') + ' Z';
+}
+
+/* ---- Blueprint view: cyanotype-style engineering drawing, generated from job data ---- */
+function buildBlueprintSVG(tmpl){
+  var top = { w: tmpl.finished.length, h: tmpl.finished.width };
+  var profilePts = mfgFinishedProfile(tmpl);
+  var profBoxW = tmpl.finished.length, profBoxH = tmpl.finished.thickness;
+
+  var scaleTop = fitScale(top.w, top.h, 168, 100);
+  var scaleFront = fitScale(profBoxW, profBoxH, 168, 70);
+  var ox1 = 14, oy1 = 14;
+  var topW = top.w*scaleTop, topH = top.h*scaleTop;
+  var ox2 = 14, oy2 = oy1 + topH + 46;
+  var frontW = profBoxW*scaleFront, frontH = profBoxH*scaleFront;
+
+  var svg = '<svg viewBox="0 0 196 262" shape-rendering="crispEdges" font-family="Courier New,monospace">';
+  svg += '<rect x="0" y="0" width="196" height="262" fill="#0a2440"/>';
+  svg += '<rect x="2" y="2" width="192" height="258" fill="none" stroke="#4a7fa8" stroke-width="1"/>';
+
+  svg += '<text x="10" y="10" fill="#bfe8ff" font-size="6" letter-spacing="1">TOP VIEW</text>';
+  svg += '<rect x="'+ox1+'" y="'+oy1+'" width="'+topW+'" height="'+topH+'" fill="none" stroke="#dff2ff" stroke-width="1"/>';
+  svg += '<line x1="'+(ox1-4)+'" y1="'+(oy1+topH/2)+'" x2="'+(ox1+topW+4)+'" y2="'+(oy1+topH/2)+'" stroke="#3f6f95" stroke-width="0.5" stroke-dasharray="4,2,1,2"/>';
+  svg += '<line x1="'+(ox1+topW/2)+'" y1="'+(oy1-4)+'" x2="'+(ox1+topW/2)+'" y2="'+(oy1+topH+4)+'" stroke="#3f6f95" stroke-width="0.5" stroke-dasharray="4,2,1,2"/>';
+
+  tmpl.features.forEach(function(f){
+    if(f.type === 'hole' || f.type === 'tappedHole'){
+      var cx = ox1 + f.x*scaleTop, cy = oy1 + (top.h - f.y)*scaleTop;
+      var r = Math.max((f.diameter/2)*scaleTop, 2);
+      svg += '<circle cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="'+r.toFixed(1)+'" fill="none" stroke="#dff2ff" stroke-width="0.8"/>';
+      svg += '<line x1="'+(cx-r-2).toFixed(1)+'" y1="'+cy.toFixed(1)+'" x2="'+(cx+r+2).toFixed(1)+'" y2="'+cy.toFixed(1)+'" stroke="#5f9fc9" stroke-width="0.5"/>';
+      svg += '<line x1="'+cx.toFixed(1)+'" y1="'+(cy-r-2).toFixed(1)+'" x2="'+cx.toFixed(1)+'" y2="'+(cy+r+2).toFixed(1)+'" stroke="#5f9fc9" stroke-width="0.5"/>';
+    } else if(f.type === 'pocket'){
+      var px = ox1 + f.x*scaleTop, py = oy1 + (top.h - f.y - f.height)*scaleTop;
+      svg += '<rect x="'+px.toFixed(1)+'" y="'+py.toFixed(1)+'" width="'+(f.width*scaleTop).toFixed(1)+'" height="'+(f.height*scaleTop).toFixed(1)+'" fill="none" stroke="#dff2ff" stroke-width="0.8" stroke-dasharray="3,2"/>';
+    }
+  });
+
+  svg += '<line x1="'+ox1+'" y1="'+(oy1+topH+8)+'" x2="'+(ox1+topW)+'" y2="'+(oy1+topH+8)+'" stroke="#dff2ff" stroke-width="0.6"/>';
+  svg += '<line x1="'+ox1+'" y1="'+(oy1+topH+5)+'" x2="'+ox1+'" y2="'+(oy1+topH+11)+'" stroke="#dff2ff" stroke-width="0.6"/>';
+  svg += '<line x1="'+(ox1+topW)+'" y1="'+(oy1+topH+5)+'" x2="'+(ox1+topW)+'" y2="'+(oy1+topH+11)+'" stroke="#dff2ff" stroke-width="0.6"/>';
+  svg += '<text x="'+(ox1+topW/2)+'" y="'+(oy1+topH+18)+'" fill="#dff2ff" font-size="6" text-anchor="middle">' + tmpl.finished.length + ' mm</text>';
+
+  var firstHole = tmpl.features.find(function(f){ return f.type==='hole' || f.type==='tappedHole'; });
+  if(firstHole){
+    svg += '<text x="'+(ox1+topW+6)+'" y="'+(oy1+8)+'" fill="#dff2ff" font-size="6">&#8960;' + firstHole.diameter + '</text>';
+  }
+
+  svg += '<text x="10" y="'+(oy2-6)+'" fill="#bfe8ff" font-size="6" letter-spacing="1">FRONT VIEW</text>';
+  svg += '<path d="' + polyPath(profilePts, scaleFront, scaleFront, ox2, oy2, true, frontH) + '" fill="none" stroke="#dff2ff" stroke-width="1"/>';
+  svg += '<line x1="'+ox2+'" y1="'+(oy2+frontH+8)+'" x2="'+(ox2+frontW)+'" y2="'+(oy2+frontH+8)+'" stroke="#dff2ff" stroke-width="0.6"/>';
+  svg += '<text x="'+(ox2+frontW/2)+'" y="'+(oy2+frontH+16)+'" fill="#dff2ff" font-size="6" text-anchor="middle">' + tmpl.finished.thickness + ' mm THK</text>';
+
+  var tbY = 226;
+  svg += '<line x1="6" y1="'+tbY+'" x2="190" y2="'+tbY+'" stroke="#4a7fa8" stroke-width="0.8"/>';
+  svg += '<text x="10" y="'+(tbY+10)+'" fill="#dff2ff" font-size="6.5">' + tmpl.part.toUpperCase() + '</text>';
+  svg += '<text x="10" y="'+(tbY+19)+'" fill="#8fc4e8" font-size="5.5">P/N ' + tmpl.partNumber + ' &middot; ' + MATERIALS[tmpl.materialKey].label.toUpperCase() + '</text>';
+  svg += '<text x="10" y="'+(tbY+28)+'" fill="#8fc4e8" font-size="5.5">QTY ' + tmpl.qty + ' &middot; VALUE ' + fmtMoney(tmpl.basePayment) + '</text>';
+  svg += '</svg>';
+  return svg;
+}
+
+/* ---- Part / stock layered visual: finished, stock, or mid-operation state ---- */
+function buildPartVisualSVG(tmpl, viewMode, ctx){
+  ctx = ctx || {};
+  var stockId = ctx.stockId || tmpl.recommendedStockId;
+  var completed = ctx.completedFeatureIds || {};
+  var pal = materialBlockPalette(tmpl.materialKey);
+
+  var profilePts, label;
+  if(viewMode === 'stock'){ profilePts = mfgStockProfile(tmpl, stockId); label = 'RAW STOCK'; }
+  else if(viewMode === 'finished'){ profilePts = mfgFinishedProfile(tmpl); label = 'FINISHED PART'; }
+  else { profilePts = mfgCurrentProfile(tmpl, stockId, completed); label = 'CURRENT STATE'; }
+
+  var boxW = Math.max.apply(null, profilePts.map(function(p){return p[0];}));
+  var boxH = Math.max.apply(null, profilePts.map(function(p){return p[1];}));
+  var scale = fitScale(boxW, boxH, 150, 90);
+  var ox = 25, oy = 20;
+  var pxW = boxW*scale, pxH = boxH*scale;
+
+  var svg = '<svg viewBox="0 0 200 150" shape-rendering="crispEdges" font-family="Courier New,monospace">';
+  svg += '<rect x="0" y="0" width="200" height="150" fill="#141310"/>';
+
+  if(ctx.showVise && ctx.viseSpan){
+    var vx1 = ox + ctx.viseSpan[0]*scale, vx2 = ox + ctx.viseSpan[1]*scale;
+    svg += '<rect x="'+vx1.toFixed(1)+'" y="'+(oy+pxH-8)+'" width="'+(vx2-vx1).toFixed(1)+'" height="16" fill="#3a4252" stroke="#12151a" stroke-width="1"/>';
+    svg += '<text x="'+((vx1+vx2)/2).toFixed(1)+'" y="'+(oy+pxH+22)+'" fill="#8a929e" font-size="6" text-anchor="middle">VISE</text>';
+  }
+
+  svg += '<path d="' + polyPath(profilePts, scale, scale, ox, oy, true, pxH) + '" fill="' + pal.front + '" stroke="' + pal.side + '" stroke-width="1.5"/>';
+  svg += '<path d="M' + ox + ',' + oy + ' L' + (ox+pxW) + ',' + oy + '" stroke="' + pal.highlightLine + '" stroke-width="1"/>';
+
+  if(viewMode === 'operation'){
+    tmpl.features.forEach(function(f){
+      if(f.type !== 'hole' && f.type !== 'tappedHole' && f.type !== 'pocket') return;
+      var done = !!completed[f.id];
+      var fx = ox + (f.x||0)*scale;
+      if(f.type === 'pocket'){
+        var fy = oy + pxH - ((f.y||0)+(f.height||0))*scale*0 + 4; /* pockets shown as a small top-face marker */
+        svg += '<rect x="'+(fx).toFixed(1)+'" y="'+(oy-2)+'" width="'+Math.max((f.width||8)*scale*0.4,4)+'" height="4" fill="'+(done?'#0d0d0c':pal.cutNotch)+'" stroke="'+pal.stepShadow+'" stroke-width="0.5"/>';
+      } else {
+        var r = Math.max((f.diameter/2)*scale, 2.5);
+        svg += '<circle cx="'+fx.toFixed(1)+'" cy="'+(oy-3)+'" r="'+r.toFixed(1)+'" fill="'+(done?'#0d0d0c':pal.cutNotch)+'" stroke="'+pal.stepShadow+'" stroke-width="0.6"/>';
+      }
+    });
+  }
+
+  svg += '<text x="10" y="146" fill="#8a929e" font-size="7" letter-spacing="1">' + label + '</text>';
+  svg += '</svg>';
+  return svg;
+}
+
+
+/* ============================================================
+   MANUFACTURING WORKFLOW LOGIC
+   ============================================================ */
+
+function mfgMachineBusy(){ return !!state.activeProduction || !!state.mfgActive; }
+
+function mfgComputeDefaultPlan(tmpl){
+  var setups = tmpl.setupDefs.map(function(sd){
+    return {
+      n: sd.n,
+      workholdingId: sd.recommendedWorkholding[0],
+      featureIds: tmpl.features.filter(function(f){ return f.setupMin === sd.n; }).map(function(f){ return f.id; })
+    };
+  });
+  return { stockId: tmpl.recommendedStockId, setups: setups };
+}
+function mfgDefaultProgram(tmpl){
+  return { setups: tmpl.setupDefs.map(function(sd){ return { n: sd.n, toolKey: tmpl.toolKey, preset: 'balanced' }; }) };
+}
+
+function mfgProgramSeconds(tmpl, plan){
+  var featureCount = tmpl.features.length;
+  var setupCount = (plan.setups || []).length || tmpl.setupsRequired;
+  var base = tmpl.baseProgramMinutes * 60;
+  base += featureCount * 5;
+  base += (setupCount - 1) * 25;
+  var camMult = state.upgrades.camSoftware ? 0.6 : 1.0;
+  var repeatMult = (state.mfgStats && state.mfgStats[tmpl.id]) ? 0.55 : 1.0;
+  return Math.max(20, Math.round(base * camMult * repeatMult));
+}
+
+function mfgStartPrep(tmplKey){
+  if(state.mfgPrep[tmplKey]) return state.mfgPrep[tmplKey];
+  var tmpl = MFG_JOBS[tmplKey];
+  var plan = mfgComputeDefaultPlan(tmpl);
+  var prep = {
+    instanceId: uid(), tmplKey: tmplKey, stage: 'blueprint',
+    plan: plan, program: mfgDefaultProgram(tmpl),
+    programTimeRemaining: 0, programTotalSeconds: 0
+  };
+  state.mfgPrep[tmplKey] = prep;
+  scheduleAutosave();
+  return prep;
+}
+function mfgAdvancePrepStage(tmplKey, stage){
+  var prep = state.mfgPrep[tmplKey];
+  if(!prep) return false;
+  prep.stage = stage;
+  scheduleAutosave();
+  return true;
+}
+function mfgBeginProgramming(tmplKey){
+  var prep = state.mfgPrep[tmplKey];
+  if(!prep || prep.stage !== 'plan') return false;
+  var tmpl = MFG_JOBS[tmplKey];
+  var secs = mfgProgramSeconds(tmpl, prep.plan);
+  prep.stage = 'programming';
+  prep.programTotalSeconds = secs;
+  prep.programTimeRemaining = secs;
+  scheduleAutosave();
+  return true;
+}
+function mfgTickPreps(dt){
+  var any = false;
+  for(var key in state.mfgPrep){
+    var prep = state.mfgPrep[key];
+    if(prep.stage === 'programming' && prep.programTimeRemaining > 0){
+      prep.programTimeRemaining = Math.max(0, prep.programTimeRemaining - dt*state.speed);
+      any = true;
+      if(prep.programTimeRemaining <= 0){ prep.stage = 'readyForSetup'; }
+    }
+  }
+  if(any) render();
+}
+
+/* ---- Cycle time / quality model ---- */
+function mfgPresetTimeMult(preset){ return preset==='conservative' ? 1.35 : preset==='aggressive' ? 0.7 : 1.0; }
+function mfgPresetRisk(preset){ return preset==='conservative' ? 0.05 : preset==='aggressive' ? 0.35 : 0.15; }
+
+function mfgCycleBreakdown(tmpl, program){
+  var rows = []; var total = 0;
+  tmpl.setupDefs.forEach(function(sd){
+    rows.push({ label: 'Load / Setup ' + sd.n, seconds: 18 }); total += 18;
+    var progSetup = (program.setups || []).filter(function(s){ return s.n === sd.n; })[0] || { preset:'balanced' };
+    tmpl.features.filter(function(f){ return f.setupMin === sd.n; }).forEach(function(f){
+      f.steps.forEach(function(stepKey){
+        var base = OP_STEP_BASE_SECONDS[stepKey] || 5;
+        var secs = Math.round(base * mfgPresetTimeMult(progSetup.preset));
+        rows.push({ label: OP_STEP_LABELS[stepKey] + ' (' + f.label + ')', seconds: secs });
+        total += secs;
+      });
+    });
+    rows.push({ label: 'Unload / Setup ' + sd.n, seconds: 10 }); total += 10;
+  });
+  return { rows: rows, total: total };
+}
+
+function mfgComputeQuality(tmpl, plan, program, machineCondition, toolCondition, bonus){
+  var warnings = evaluateMfgPlan(tmpl, plan);
+  var badCount = warnings.filter(function(w){ return w.level === 'bad'; }).length;
+  var warnCount = warnings.filter(function(w){ return w.level === 'warn'; }).length;
+  var score = 100 - badCount*22 - warnCount*8;
+  var setups = program.setups || [];
+  var avgRisk = 0;
+  setups.forEach(function(s){ avgRisk += mfgPresetRisk(s.preset); });
+  avgRisk = setups.length ? avgRisk/setups.length : 0.15;
+  score -= avgRisk*60;
+  score -= (100-toolCondition)*0.15;
+  score -= (100-machineCondition)*0.1;
+  score += (bonus || 0);
+  return clamp(Math.round(score), 2, 100);
+}
+function mfgRunInspectionDims(tmpl, qualityScore){
+  var devScale = (100-qualityScore)/100;
+  return tmpl.inspectionDims.map(function(d){
+    var noise = rnd(-1,1) * d.tol * (0.25 + devScale*1.9);
+    var measured = round3(d.nominal + noise);
+    var deviation = round3(measured - d.nominal);
+    var pass = Math.abs(deviation) <= d.tol;
+    return { id:d.id, label:d.label, nominal:d.nominal, tol:d.tol, unit:d.unit, measured:measured, deviation:deviation, pass:pass };
+  });
+}
+function mfgSurfaceIssues(qualityScore){
+  var issues = [];
+  if(qualityScore < 45 && Math.random()*100 < 55) issues.push('Chatter marks visible on the finished contour.');
+  else if(qualityScore < 68 && Math.random()*100 < 30) issues.push('Light tool marks on the finished surface.');
+  if(qualityScore < 55 && Math.random() < 0.3) issues.push('Minor burrs at hole edges.');
+  return issues;
+}
+
+/* ---- Confidence ---- */
+function mfgConfidenceLabel(key){
+  return { untested:'Untested', firstArticleRequired:'First Article Required', provisional:'Provisional', proven:'Proven', reliable:'Reliable', repeatJob:'Repeat Job' }[key] || key;
+}
+function mfgConfidenceFromScore(score){
+  if(score>=90) return 'repeatJob';
+  if(score>=75) return 'reliable';
+  if(score>=58) return 'proven';
+  if(score>=40) return 'provisional';
+  if(score>=20) return 'firstArticleRequired';
+  return 'untested';
+}
+function mfgMaxBatch(confidenceKey){
+  return { untested:1, firstArticleRequired:1, provisional:2, proven:5, reliable:10, repeatJob:99999 }[confidenceKey] || 1;
+}
+
+/* ---- Machine slot: setup / first article / inspect / correct / approve / production / ship ---- */
+function mfgSetupOnMachine(tmplKey){
+  if(mfgMachineBusy()) return false;
+  var prep = state.mfgPrep[tmplKey];
+  if(!prep || prep.stage !== 'readyForSetup') return false;
+  var tmpl = MFG_JOBS[tmplKey];
+  state.mfgActive = {
+    tmplKey: tmplKey, plan: prep.plan, program: prep.program,
+    stage: 'setup', completedFeatureIds: {},
+    firstArticleCount: 0, requiredFirstArticles: tmpl.difficulty >= 3 ? 2 : 1,
+    confidenceScore: 15, confidence: 'untested',
+    elapsedSim: 0, totalSim: 0, paused: false, stopReason: null,
+    goodCount: 0, scrapCount: 0, qtyTarget: tmpl.qty,
+    blanksInStock: tmpl.qty + 3,
+    batchSize: 0, batchRemaining: 0,
+    lastInspection: null, correctionLog: [], _correctionBoost: 0,
+    economics: { materialCost:0, setupCost:0, scrapCost:0 },
+    shipped: false
+  };
+  delete state.mfgPrep[tmplKey];
+  scheduleAutosave();
+  return true;
+}
+function mfgConfirmSetupRunFirstArticle(){
+  var ap = state.mfgActive;
+  if(!ap || ap.stage !== 'setup') return false;
+  var tmpl = MFG_JOBS[ap.tmplKey];
+  ap.completedFeatureIds = {};
+  ap.elapsedSim = 0;
+  ap.totalSim = mfgCycleBreakdown(tmpl, ap.program).total;
+  ap.stage = 'firstArticle';
+  ap.paused = false;
+  scheduleAutosave();
+  return true;
+}
+
+function mfgTickActive(dt){
+  var ap = state.mfgActive;
+  if(!ap) return;
+  if((ap.stage !== 'firstArticle' && ap.stage !== 'production') || ap.paused) return;
+
+  ap.elapsedSim += dt*state.speed;
+  var frac = clamp(ap.elapsedSim / Math.max(1, ap.totalSim), 0, 1);
+  var tmpl = MFG_JOBS[ap.tmplKey];
+
+  var totalFeatureSec = 0;
+  tmpl.features.forEach(function(f){ f.steps.forEach(function(sk){ totalFeatureSec += OP_STEP_BASE_SECONDS[sk] || 5; }); });
+  var target = frac*totalFeatureSec, run = 0;
+  tmpl.features.forEach(function(f){
+    var fsec = 0; f.steps.forEach(function(sk){ fsec += OP_STEP_BASE_SECONDS[sk] || 5; });
+    run += fsec;
+    if(run <= target) ap.completedFeatureIds[f.id] = true;
+  });
+
+  if(!reducedMotion){
+    ap._chipTimer = (ap._chipTimer||0) + dt;
+    if(ap._chipTimer >= 0.16){
+      ap._chipTimer = 0;
+      var layer = document.querySelector('#mfg-mill .chip-layer');
+      if(layer) spawnChip(layer);
+    }
+  }
+
+  if(frac >= 1) mfgFinishCycle();
+  render();
+}
+
+function mfgFinishCycle(){
+  var ap = state.mfgActive; if(!ap) return;
+  var tmpl = MFG_JOBS[ap.tmplKey];
+  var toolCond = state.tools[tmpl.toolKey].condition;
+  var quality = mfgComputeQuality(tmpl, ap.plan, ap.program, state.machine.condition, toolCond, ap._correctionBoost);
+
+  if(ap.stage === 'firstArticle'){
+    var dims = mfgRunInspectionDims(tmpl, quality);
+    var issues = mfgSurfaceIssues(quality);
+    var pass = dims.every(function(d){ return d.pass; }) && issues.length === 0;
+    ap.lastInspection = { dims: dims, issues: issues, pass: pass, quality: quality };
+    ap.stage = 'inspecting';
+    ap.confidenceScore = clamp(ap.confidenceScore + (pass ? 35 : -25), 0, 100);
+    ap.confidence = mfgConfidenceFromScore(ap.confidenceScore);
+    var wear = 6 + (100-quality)*0.08;
+    state.tools[tmpl.toolKey].condition = clamp(state.tools[tmpl.toolKey].condition - wear, 0, 100);
+    state.machine.condition = clamp(state.machine.condition - 1.2, 0, 100);
+  } else if(ap.stage === 'production'){
+    var pass2 = Math.random()*100 < quality;
+    if(pass2) ap.goodCount++; else { ap.scrapCount++; ap.economics.scrapCost += Math.round(tmpl.materialCostBase); }
+    ap.blanksInStock = Math.max(0, ap.blanksInStock - 1);
+    var wear2 = 3 + (100-quality)*0.05;
+    state.tools[tmpl.toolKey].condition = clamp(state.tools[tmpl.toolKey].condition - wear2, 0, 100);
+    state.machine.condition = clamp(state.machine.condition - 0.6, 0, 100);
+    ap.batchRemaining = Math.max(0, ap.batchRemaining - 1);
+    ap.confidenceScore = clamp(ap.confidenceScore + (pass2 ? 3 : -18), 0, 100);
+    ap.confidence = mfgConfidenceFromScore(ap.confidenceScore);
+
+    var doneQty = ap.goodCount >= ap.qtyTarget;
+    var toolDead = state.tools[tmpl.toolKey].condition <= 3;
+    var outOfMaterial = ap.blanksInStock <= 0;
+    if(doneQty || toolDead || outOfMaterial || ap.batchRemaining <= 0){
+      ap.paused = true;
+      ap.stopReason = doneQty ? 'complete' : toolDead ? 'tool' : outOfMaterial ? 'material' : 'batch';
+    } else {
+      ap.elapsedSim = 0;
+      ap.completedFeatureIds = {};
+    }
+  }
+  scheduleAutosave();
+  render();
+}
+
+var MFG_CORRECTIONS = {
+  toolOffset:  { label:'Adjust Tool Offset',            costSec:20, qualityBoost:14 },
+  feedReduce:  { label:'Reduce Feed Rate',               costSec:15, qualityBoost:10 },
+  docReduce:   { label:'Reduce Depth of Cut',            costSec:15, qualityBoost:10 },
+  workholding: { label:'Improve Workholding',            costSec:30, qualityBoost:18 },
+  reprogram:   { label:'Reprogram Affected Feature',     costSec:60, qualityBoost:26 },
+  toolChange:  { label:'Change Tool',                    costSec:40, qualityBoost:22, costCash:true }
+};
+function mfgApplyCorrection(key){
+  var ap = state.mfgActive; if(!ap || ap.stage !== 'inspecting') return false;
+  var c = MFG_CORRECTIONS[key]; if(!c) return false;
+  var tmpl = MFG_JOBS[ap.tmplKey];
+  if(c.costCash){
+    var price = TOOLS[tmpl.toolKey].price;
+    if(state.cash < price) return false;
+    state.cash -= price;
+    state.tools[tmpl.toolKey].condition = 100;
+  }
+  ap.correctionLog.push(key);
+  ap._correctionBoost = (ap._correctionBoost || 0) + c.qualityBoost;
+  ap.economics.setupCost = (ap.economics.setupCost||0) + 5;
+  ap.stage = 'correcting';
+  scheduleAutosave();
+  return true;
+}
+function mfgRerunAfterCorrection(){
+  var ap = state.mfgActive; if(!ap || ap.stage !== 'correcting') return false;
+  var tmpl = MFG_JOBS[ap.tmplKey];
+  ap.completedFeatureIds = {};
+  ap.elapsedSim = 0;
+  ap.totalSim = mfgCycleBreakdown(tmpl, ap.program).total;
+  ap.stage = 'firstArticle';
+  scheduleAutosave();
+  return true;
+}
+function mfgScrapAndRestart(){
+  var ap = state.mfgActive; if(!ap || ap.stage !== 'inspecting') return false;
+  ap.blanksInStock = Math.max(0, ap.blanksInStock - 1);
+  ap.economics.scrapCost = (ap.economics.scrapCost||0) + Math.round(MFG_JOBS[ap.tmplKey].materialCostBase);
+  ap.stage = 'setup';
+  scheduleAutosave();
+  return true;
+}
+function mfgApproveProduction(){
+  var ap = state.mfgActive; if(!ap || ap.stage !== 'inspecting') return false;
+  if(!ap.lastInspection || !ap.lastInspection.pass) return false;
+  ap.firstArticleCount++;
+  ap.goodCount++;
+  if(ap.firstArticleCount < ap.requiredFirstArticles){
+    var tmpl = MFG_JOBS[ap.tmplKey];
+    ap.stage = 'firstArticle';
+    ap.elapsedSim = 0; ap.completedFeatureIds = {};
+    ap.totalSim = mfgCycleBreakdown(tmpl, ap.program).total;
+  } else {
+    ap.stage = 'approved';
+  }
+  scheduleAutosave();
+  return true;
+}
+function mfgStartBatch(sizeChoice){
+  var ap = state.mfgActive; if(!ap || (ap.stage !== 'approved' && ap.stage !== 'production')) return false;
+  var tmpl = MFG_JOBS[ap.tmplKey];
+  var remainingQty = Math.max(0, ap.qtyTarget - ap.goodCount);
+  var n = sizeChoice === 'remaining' ? remainingQty : Math.min(sizeChoice, remainingQty);
+  var maxAllowed = mfgMaxBatch(ap.confidence);
+  if(n > maxAllowed) n = maxAllowed;
+  if(n <= 0) return false;
+  ap.batchSize = n; ap.batchRemaining = n;
+  ap.stage = 'production';
+  ap.paused = false; ap.stopReason = null;
+  ap.elapsedSim = 0; ap.completedFeatureIds = {};
+  ap.totalSim = mfgCycleBreakdown(tmpl, ap.program).total;
+  scheduleAutosave();
+  return true;
+}
+function mfgShipJob(){
+  var ap = state.mfgActive; if(!ap || ap.shipped) return false;
+  var tmpl = MFG_JOBS[ap.tmplKey];
+  ap.shipped = true;
+  var frac = ap.qtyTarget > 0 ? clamp(ap.goodCount/ap.qtyTarget, 0, 1) : 0;
+  var revenue = Math.round(tmpl.basePayment*frac);
+  var stockMult = mfgStockOption(tmpl, ap.plan.stockId).costMult;
+  var matCost = Math.round(tmpl.materialCostBase*stockMult*(ap.goodCount+ap.scrapCount));
+  var setupCost = Math.round(ap.economics.setupCost||0);
+  var profit = revenue - matCost - setupCost;
+  state.cash += profit;
+  state.reputation = Math.max(0, state.reputation + Math.round(tmpl.difficulty*3*frac));
+  state.stats.jobsCompleted++;
+  state.stats.totalRevenue += revenue; state.stats.totalProfit += profit;
+  state.stats.totalUnits += (ap.goodCount+ap.scrapCount); state.stats.totalScrapUnits += ap.scrapCount;
+  state.stats.bestJobProfit = Math.max(state.stats.bestJobProfit, profit);
+  state.stats.materialJobsCount[tmpl.materialKey] = (state.stats.materialJobsCount[tmpl.materialKey]||0) + 1;
+  state.mfgStats = state.mfgStats || {};
+  state.mfgStats[tmpl.id] = true;
+  state.history.unshift({ part: tmpl.part, customer: tmpl.customer, profit: profit, result: ap.goodCount>=ap.qtyTarget ? 'Complete' : 'Partial (' + ap.goodCount + '/' + ap.qtyTarget + ')', at: Date.now() });
+  if(state.history.length > 25) state.history.length = 25;
+  var summary = { revenue:revenue, matCost:matCost, setupCost:setupCost, profit:profit, goodCount:ap.goodCount, scrapCount:ap.scrapCount, qtyTarget:ap.qtyTarget };
+  state.mfgActive = null;
+  checkMilestone();
+  scheduleAutosave();
+  return summary;
+}
+
+/* ---- Offline progress ---- */
+function mfgSimulateOffline(elapsedRealSec){
+  var ap = state.mfgActive;
+  if(!ap || ap.stage !== 'production' || ap.paused) return null;
+  if(elapsedRealSec < 5) return null;
+  var tmpl = MFG_JOBS[ap.tmplKey];
+  var cycleSec = ap.totalSim || mfgCycleBreakdown(tmpl, ap.program).total;
+  var simAvailable = elapsedRealSec;
+  var report = { goodMade:0, scrapMade:0, blanksUsed:0, stopped:null, tmplKey: ap.tmplKey, partLabel: tmpl.part };
+  var remainingCycle = Math.max(0, cycleSec - ap.elapsedSim);
+  if(simAvailable < remainingCycle){
+    ap.elapsedSim += simAvailable;
+    return null;
+  }
+  simAvailable -= remainingCycle;
+  ap.elapsedSim = 0;
+  var toolCond = state.tools[tmpl.toolKey].condition;
+  var guard = 0;
+  while(guard++ < 20000){
+    var quality = mfgComputeQuality(tmpl, ap.plan, ap.program, state.machine.condition, toolCond, ap._correctionBoost);
+    var pass = Math.random()*100 < quality;
+    if(pass){ ap.goodCount++; report.goodMade++; } else { ap.scrapCount++; report.scrapMade++; }
+    ap.blanksInStock = Math.max(0, ap.blanksInStock - 1); report.blanksUsed++;
+    toolCond = clamp(toolCond - (3 + (100-quality)*0.05), 0, 100);
+    state.machine.condition = clamp(state.machine.condition - 0.6, 0, 100);
+    ap.batchRemaining = Math.max(0, ap.batchRemaining - 1);
+
+    var doneQty = ap.goodCount >= ap.qtyTarget;
+    var toolDead = toolCond <= 3;
+    var outOfMaterial = ap.blanksInStock <= 0;
+    if(doneQty || toolDead || outOfMaterial || ap.batchRemaining <= 0){
+      ap.paused = true;
+      ap.stopReason = doneQty ? 'complete' : toolDead ? 'tool' : outOfMaterial ? 'material' : 'batch';
+      report.stopped = ap.stopReason;
+      break;
+    }
+    if(simAvailable < cycleSec) break;
+    simAvailable -= cycleSec;
+  }
+  state.tools[tmpl.toolKey].condition = toolCond;
+  return report;
+}
+function mfgStopReasonText(reason){
+  return {
+    complete:'the job quantity was completed',
+    tool:'the end mill reached its wear limit',
+    material:'material ran out',
+    batch:'the selected batch finished'
+  }[reason] || 'production paused';
+}
+
+/* ============================================================
+   MANUFACTURING WORKFLOW UI
+   ============================================================ */
+
+var MFG_TABS = [
+  { key:'blueprint', label:'Blueprint' },
+  { key:'plan', label:'Process Plan' },
+  { key:'programming', label:'Programming' },
+  { key:'setup', label:'Setup' },
+  { key:'firstArticle', label:'First Article' },
+  { key:'inspecting', label:'Inspection' },
+  { key:'production', label:'Production' }
+];
+var MFG_STAGE_TAB_INDEX = {
+  blueprint:0, plan:1, programming:2, readyForSetup:2,
+  setup:3, firstArticle:4, correcting:4, inspecting:5, approved:6, production:6
+};
+
+var openMfgTmplKey = null;
+var mfgActiveTab = 'blueprint';
+var mfgPartView = 'blueprint';
+
+function mfgCurrentStageKey(tmplKey){
+  if(state.mfgActive && state.mfgActive.tmplKey === tmplKey) return state.mfgActive.stage;
+  var prep = state.mfgPrep[tmplKey];
+  if(prep) return prep.stage;
+  return 'blueprint';
+}
+
+function renderBlueprintJobs(){
+  var host = document.getElementById('blueprint-jobs');
+  if(!host) return;
+  host.innerHTML = state.mfgBoard.map(function(key){
+    var tmpl = MFG_JOBS[key];
+    var stageKey = mfgCurrentStageKey(key);
+    var onMachine = state.mfgActive && state.mfgActive.tmplKey === key;
+    var statusLabel = onMachine ? ('On Machine — ' + mfgStageStatusLabel(stageKey)) :
+      (state.mfgPrep[key] ? ('In Prep — ' + mfgStageStatusLabel(stageKey)) : 'New Blueprint');
+    var statusCls = onMachine ? 'good' : (state.mfgPrep[key] ? 'warn' : '');
+    return '<div class="card job-card">' +
+      '<div class="spread"><h3 style="margin:0;">' + tmpl.part + '</h3><span class="pill ' + statusCls + '">' + statusLabel + '</span></div>' +
+      '<div class="muted jc-sub">' + tmpl.customer + ' &middot; P/N ' + tmpl.partNumber + '</div>' +
+      '<div class="jc-row"><span class="jc-price">' + fmtMoney(tmpl.basePayment) + '</span>' +
+        '<span class="jc-deadline">Qty ' + tmpl.qty + '</span></div>' +
+      '<div class="jc-row jc-meta">' + materialChipHtml(tmpl.materialKey) + difficultyDotsHtml(tmpl.difficulty) + '</div>' +
+      '<button type="button" data-action="open-mfg-job" data-key="' + key + '">' + (stageKey==='blueprint' && !state.mfgPrep[key] && !onMachine ? 'View Blueprint' : 'Continue') + '</button>' +
+    '</div>';
+  }).join('');
+}
+function mfgStageStatusLabel(stageKey){
+  return { blueprint:'Reviewing Blueprint', plan:'Planning', programming:'Programming', readyForSetup:'Ready for Setup',
+    setup:'Setup', firstArticle:'Running First Article', correcting:'Correcting', inspecting:'Inspecting',
+    approved:'Approved — Ready to Run', production:'In Production' }[stageKey] || stageKey;
+}
+
+function openMfgModal(key){
+  openMfgTmplKey = key;
+  if(!state.mfgPrep[key] && !(state.mfgActive && state.mfgActive.tmplKey === key)) mfgStartPrep(key);
+  mfgActiveTab = MFG_TABS[MFG_STAGE_TAB_INDEX[mfgCurrentStageKey(key)] || 0].key;
+  mfgPartView = 'blueprint';
+  openModal('<div id="mfg-modal-body"></div>', 'mfg-modal setup-modal');
+  renderMfgModalContent();
+}
+
+var mfgModalRenderSig = '';
+var mfgMillSvgSig = '';
+function renderMfgModalContent(){
+  var host = document.getElementById('mfg-modal-body');
+  if(!host || !openMfgTmplKey) return;
+  var key = openMfgTmplKey;
+  var tmpl = MFG_JOBS[key];
+  var stageKey = mfgCurrentStageKey(key);
+  var unlockedIdx = MFG_STAGE_TAB_INDEX[stageKey] != null ? MFG_STAGE_TAB_INDEX[stageKey] : 0;
+  var ap = state.mfgActive;
+
+  var liveTab = mfgActiveTab === 'firstArticle' || mfgActiveTab === 'production';
+  var liveTicking = ap && ap.tmplKey === key && liveTab && !ap.paused && (ap.stage === 'firstArticle' || ap.stage === 'production');
+  var sig = key + '|' + mfgActiveTab + '|' + stageKey + '|' + (ap ? ap.batchRemaining : '') + '|' + (ap ? ap.firstArticleCount : '');
+
+  if(liveTicking && mfgModalRenderSig === sig && document.getElementById('mfg-progress-fill')){
+    mfgUpdateLiveProgress();
+    return;
+  }
+  mfgModalRenderSig = sig;
+  mfgMillSvgSig = '';
+
+  var tabsHtml = '<div class="row" id="mfg-tabs" role="tablist" style="flex-wrap:nowrap; overflow-x:auto; margin-bottom:.6em;">' +
+    MFG_TABS.map(function(t, i){
+      var locked = i > unlockedIdx;
+      return '<button type="button" data-action="mfg-tab" data-tab="' + t.key + '" aria-pressed="' + (mfgActiveTab===t.key) + '" ' + (locked?'disabled':'') + ' style="flex:0 0 auto; font-size:.78rem; padding:.5em .7em;">' + t.label + '</button>';
+    }).join('') + '</div>';
+
+  var body = mfgTabBodyHtml(tmpl, key, stageKey);
+  host.innerHTML = '<div class="modal-header"><h2>' + tmpl.part + '</h2><button class="close-x" data-action="close-modal" aria-label="Close">&times;</button></div>' +
+    tabsHtml + '<div id="mfg-tab-body">' + body + '</div>';
+}
+
+function mfgUpdateLiveProgress(){
+  var ap = state.mfgActive;
+  if(!ap) return;
+  var frac = clamp(ap.elapsedSim/Math.max(1,ap.totalSim), 0, 1);
+  var fillEl = document.getElementById('mfg-progress-fill');
+  if(fillEl) fillEl.style.width = (frac*100) + '%';
+  var textEl = document.getElementById('mfg-progress-text');
+  if(textEl){
+    if(mfgActiveTab === 'firstArticle'){
+      textEl.textContent = 'First article ' + (ap.firstArticleCount+1) + ' of ' + ap.requiredFirstArticles + ' required · ' + fmtTime(Math.max(0,ap.totalSim-ap.elapsedSim)) + ' remaining';
+    } else {
+      textEl.textContent = 'Running batch — ' + ap.batchRemaining + ' part(s) left in this batch.';
+    }
+  }
+  var svgHost = document.getElementById('mfg-mill-svg');
+  if(svgHost){
+    var completedSig = Object.keys(ap.completedFeatureIds || {}).sort().join(',');
+    if(completedSig !== mfgMillSvgSig){
+      mfgMillSvgSig = completedSig;
+      var tmpl = MFG_JOBS[ap.tmplKey];
+      svgHost.innerHTML = buildPartVisualSVG(tmpl, 'operation', { stockId: ap.plan.stockId, completedFeatureIds: ap.completedFeatureIds });
+    }
+  }
+}
+
+function mfgTabBodyHtml(tmpl, key, stageKey){
+  switch(mfgActiveTab){
+    case 'blueprint': return mfgBlueprintTabHtml(tmpl, key);
+    case 'plan': return mfgPlanTabHtml(tmpl, key);
+    case 'programming': return mfgProgrammingTabHtml(tmpl, key);
+    case 'setup': return mfgSetupTabHtml(tmpl, key);
+    case 'firstArticle': return mfgFirstArticleTabHtml(tmpl, key);
+    case 'inspecting': return mfgInspectionTabHtml(tmpl, key);
+    case 'production': return mfgProductionTabHtml(tmpl, key);
+    default: return '';
+  }
+}
+
+/* ---- Blueprint tab ---- */
+function mfgBlueprintTabHtml(tmpl, key){
+  var prep = state.mfgPrep[key];
+  var canAdvance = prep && prep.stage === 'blueprint';
+  return '<div class="row" role="group" aria-label="Part view">' +
+      '<button type="button" data-action="mfg-partview" data-view="blueprint" aria-pressed="' + (mfgPartView==='blueprint') + '">Blueprint</button>' +
+      '<button type="button" data-action="mfg-partview" data-view="finished" aria-pressed="' + (mfgPartView==='finished') + '">Finished Part</button>' +
+      '<button type="button" data-action="mfg-partview" data-view="stock" aria-pressed="' + (mfgPartView==='stock') + '">Raw Stock</button>' +
+    '</div>' +
+    '<div class="mill-mini" style="max-width:280px; margin:.6em auto; background:#0a2440;" aria-hidden="true">' +
+      (mfgPartView==='blueprint' ? buildBlueprintSVG(tmpl) : buildPartVisualSVG(tmpl, mfgPartView, { stockId: (prep? prep.plan.stockId : tmpl.recommendedStockId) })) +
+    '</div>' +
+    '<div class="stat-grid">' +
+      statBox('Material', MATERIALS[tmpl.materialKey].label) +
+      statBox('Quantity', tmpl.qty) +
+      statBox('Due', fmtTime(tmpl.dueSec)) +
+      statBox('Value', fmtMoney(tmpl.basePayment)) +
+      statBox('Setups needed', tmpl.setupsRequired) +
+      statBox('Difficulty', tmpl.difficulty + '/5') +
+    '</div>' +
+    (canAdvance ? '<button type="button" class="primary" style="width:100%; margin-top:.8em;" data-action="mfg-advance" data-key="' + key + '" data-to="plan">Review Complete &mdash; Plan the Process</button>' : '');
+}
+
+/* ---- Process Plan tab ---- */
+function mfgPlanTabHtml(tmpl, key){
+  var prep = state.mfgPrep[key];
+  var plan = prep ? prep.plan : (state.mfgActive ? state.mfgActive.plan : mfgComputeDefaultPlan(tmpl));
+  var editable = prep && prep.stage === 'plan';
+  var warnings = evaluateMfgPlan(tmpl, plan);
+
+  var stockHtml = '<label for="mfg-stock">Starting stock</label><select id="mfg-stock" ' + (editable?'':'disabled') + ' data-action-change="mfg-set-stock">' +
+    tmpl.stockOptions.map(function(s){ return '<option value="'+s.id+'"' + (plan.stockId===s.id?' selected':'') + '>' + s.label + '</option>'; }).join('') + '</select>';
+
+  var setupsHtml = tmpl.setupDefs.map(function(sd, idx){
+    var s = plan.setups[idx];
+    var options = Object.keys(WORKHOLDING).filter(function(wk){
+      var wh = WORKHOLDING[wk];
+      return !wh.unlockedBy || state.upgrades[wh.unlockedBy];
+    }).map(function(wk){
+      return '<option value="'+wk+'"' + (s.workholdingId===wk?' selected':'') + '>' + WORKHOLDING[wk].label + '</option>';
+    }).join('');
+    return '<div class="card" style="margin-top:.5em;">' +
+      '<h4 style="margin:0 0 .3em;">' + sd.label + '</h4>' +
+      (sd.note ? '<p class="muted" style="font-size:.82rem;">' + sd.note + '</p>' : '') +
+      '<label for="mfg-wh-'+idx+'">Workholding</label>' +
+      '<select id="mfg-wh-'+idx+'" ' + (editable?'':'disabled') + ' data-action-change="mfg-set-workholding" data-setup-idx="'+idx+'">' + options + '</select>' +
+      '<p class="muted" style="font-size:.78rem; margin-top:.3em;">Features: ' + tmpl.features.filter(function(f){return f.setupMin===sd.n;}).map(function(f){return f.label;}).join(', ') + '</p>' +
+    '</div>';
+  }).join('');
+
+  var warnHtml = warnings.length ? '<ul class="warning-list">' + warnings.map(function(w){
+    return '<li style="' + (w.level==='bad'?'':'background:rgba(255,204,51,.12); border-color:var(--warn); color:#ffe9a8;') + '">' + w.text + '</li>';
+  }).join('') + '</ul>' : '<p class="pill good">No plan warnings.</p>';
+
+  return stockHtml + setupsHtml + '<h4 class="section-title">Plan Warnings</h4>' + warnHtml +
+    (editable ? '<button type="button" class="primary" style="width:100%; margin-top:.8em;" data-action="mfg-advance" data-key="' + key + '" data-to="programming-start">Confirm Plan &mdash; Begin Programming</button>' : '');
+}
+
+/* ---- Programming tab ---- */
+function mfgProgrammingTabHtml(tmpl, key){
+  var prep = state.mfgPrep[key];
+  var program = prep ? prep.program : (state.mfgActive ? state.mfgActive.program : mfgDefaultProgram(tmpl));
+  var plan = prep ? prep.plan : (state.mfgActive ? state.mfgActive.plan : mfgComputeDefaultPlan(tmpl));
+  var editable = prep && prep.stage === 'plan';
+  var isProgramming = prep && prep.stage === 'programming';
+  var ready = prep && prep.stage === 'readyForSetup';
+
+  var setupsHtml = tmpl.setupDefs.map(function(sd, idx){
+    var s = program.setups[idx];
+    var featuresForSetup = tmpl.features.filter(function(f){ return f.setupMin === sd.n; });
+    var stepsHtml = featuresForSetup.map(function(f){
+      return '<li>' + f.label + ': ' + f.steps.map(function(sk){ return OP_STEP_LABELS[sk]; }).join(' → ') + '</li>';
+    }).join('');
+    var toolOptions = ['em18','em14'].map(function(tk){ return '<option value="'+tk+'"' + (s.toolKey===tk?' selected':'') + '>' + TOOLS[tk].shortLabel + '</option>'; }).join('');
+    var presetOptions = ['conservative','balanced','aggressive'].map(function(p){
+      return '<option value="'+p+'"' + (s.preset===p?' selected':'') + '>' + p.charAt(0).toUpperCase()+p.slice(1) + '</option>';
+    }).join('');
+    return '<div class="card" style="margin-top:.5em;">' +
+      '<h4 style="margin:0 0 .3em;">Setup ' + sd.n + ' Program</h4>' +
+      '<ol style="margin:.3em 0; padding-left:1.2em; font-size:.82rem; color:var(--text-dim);">' + stepsHtml + '</ol>' +
+      '<label>Tool</label><select ' + (editable?'':'disabled') + ' data-action-change="mfg-set-tool" data-setup-idx="'+idx+'">' + toolOptions + '</select>' +
+      '<label>Strategy</label><select ' + (editable?'':'disabled') + ' data-action-change="mfg-set-preset" data-setup-idx="'+idx+'">' + presetOptions + '</select>' +
+    '</div>';
+  }).join('');
+
+  var cycleInfo = mfgCycleBreakdown(tmpl, program);
+  var cycleHtml = '<h4 class="section-title">Cycle Time Breakdown</h4><table><tbody>' +
+    cycleInfo.rows.map(function(r){ return '<tr><td>' + r.label + '</td><td>' + fmtTime(r.seconds) + '</td></tr>'; }).join('') +
+    '<tr><td><b>Total</b></td><td><b>' + fmtTime(cycleInfo.total) + '</b></td></tr></tbody></table>';
+
+  var actionHtml = '';
+  if(editable){
+    var progSec = mfgProgramSeconds(tmpl, plan);
+    actionHtml = '<p class="muted">Estimated programming time: ' + fmtTime(progSec) + (state.upgrades.camSoftware?' (CAM software applied)':'') + '</p>' +
+      '<button type="button" class="primary" style="width:100%; margin-top:.4em;" data-action="mfg-begin-programming" data-key="' + key + '">Generate Program</button>';
+  } else if(isProgramming){
+    var pct = 100 - Math.round(100*prep.programTimeRemaining/Math.max(1,prep.programTotalSeconds));
+    actionHtml = '<p>Programming in progress&hellip; (' + fmtTime(prep.programTimeRemaining) + ' remaining)</p>' +
+      '<div class="bar-track"><div class="bar-fill" style="width:' + pct + '%"></div></div>' +
+      '<p class="muted" style="font-size:.8rem;">This runs in the background &mdash; feel free to switch tabs, run another job, or check back later.</p>';
+  } else if(ready){
+    actionHtml = '<p class="pill good">Program ready.</p>' +
+      '<button type="button" class="primary" style="width:100%; margin-top:.4em;" data-action="mfg-setup-machine" data-key="' + key + '" ' + (mfgMachineBusy()?'disabled':'') + '>' +
+      (mfgMachineBusy() ? 'Machine Busy &mdash; Wait' : 'Load on Machine') + '</button>';
+  }
+
+  return setupsHtml + cycleHtml + actionHtml;
+}
+
+/* ---- Setup tab ---- */
+function mfgSetupTabHtml(tmpl, key){
+  var ap = state.mfgActive;
+  if(!ap || ap.tmplKey !== key) return '<p class="muted">Not yet on the machine.</p>';
+  var setupsHtml = tmpl.setupDefs.map(function(sd, idx){
+    var s = ap.plan.setups[idx];
+    return '<li>Setup ' + sd.n + ': ' + WORKHOLDING[s.workholdingId].label + '</li>';
+  }).join('');
+  return '<div class="mill-mini" id="mfg-mill" style="max-width:280px; margin:.6em auto;" aria-hidden="true">' +
+      buildPartVisualSVG(tmpl, 'stock', { stockId: ap.plan.stockId }) +
+    '</div>' +
+    '<p>Stock: ' + mfgStockOption(tmpl, ap.plan.stockId).label + '</p>' +
+    '<ul>' + setupsHtml + '</ul>' +
+    '<button type="button" class="primary" style="width:100%;" data-action="mfg-run-first-article" data-key="' + key + '">Load Material &amp; Run First Article</button>';
+}
+
+/* ---- First Article tab ---- */
+function mfgSpeedRowHtml(){
+  return '<div class="row" role="group" aria-label="Production speed" style="margin-bottom:.5em;">' +
+    [1,2,4].map(function(s){
+      return '<button type="button" data-action="set-speed" data-speed="' + s + '" aria-pressed="' + (state.speed===s) + '">' + s + 'x</button>';
+    }).join('') + '</div>';
+}
+
+function mfgFirstArticleTabHtml(tmpl, key){
+  var ap = state.mfgActive;
+  if(!ap || ap.tmplKey !== key) return '<p class="muted">Not running yet.</p>';
+  var frac = clamp(ap.elapsedSim/Math.max(1,ap.totalSim), 0, 1);
+  if(ap.stage === 'correcting'){
+    return '<p class="pill warn">Correction applied. Ready to re-run.</p>' +
+      '<button type="button" class="primary" style="width:100%;" data-action="mfg-rerun" data-key="' + key + '">Re-run First Article</button>';
+  }
+  return mfgSpeedRowHtml() +
+    '<div class="mill-mini" id="mfg-mill" style="max-width:280px; margin:.6em auto;" aria-hidden="true">' +
+      '<div id="mfg-mill-svg">' + buildPartVisualSVG(tmpl, 'operation', { stockId: ap.plan.stockId, completedFeatureIds: ap.completedFeatureIds }) + '</div>' +
+      '<div class="chip-layer"></div>' +
+    '</div>' +
+    '<div class="bar-track" role="progressbar" aria-valuenow="' + Math.round(frac*100) + '"><div class="bar-fill" id="mfg-progress-fill" style="width:' + (frac*100) + '%"></div></div>' +
+    '<p class="muted" id="mfg-progress-text">First article ' + (ap.firstArticleCount+1) + ' of ' + ap.requiredFirstArticles + ' required &middot; ' + fmtTime(Math.max(0,ap.totalSim-ap.elapsedSim)) + ' remaining</p>';
+}
+
+/* ---- Inspection tab ---- */
+function mfgInspectionTabHtml(tmpl, key){
+  var ap = state.mfgActive;
+  if(!ap || ap.tmplKey !== key || !ap.lastInspection) return '<p class="muted">No first article to inspect yet.</p>';
+  var insp = ap.lastInspection;
+  var rows = insp.dims.map(function(d){
+    return '<tr><td>' + d.label + '</td><td>' + d.nominal + ' &plusmn;' + d.tol + ' ' + d.unit + '</td><td>' + d.measured + ' ' + d.unit + '</td>' +
+      '<td class="' + (d.pass?'good':'bad') + '" style="color:var(--' + (d.pass?'good':'bad') + ');">' + (d.pass?'PASS':'FAIL') + '</td></tr>';
+  }).join('');
+  var issuesHtml = insp.issues.length ? '<ul class="warning-list">' + insp.issues.map(function(i){return '<li>'+i+'</li>';}).join('') + '</ul>' : '';
+
+  var actionsHtml;
+  if(ap.stage === 'inspecting' && insp.pass){
+    actionsHtml = '<p class="pill good">First article passed.</p>' +
+      '<button type="button" class="primary" style="width:100%; margin-top:.4em;" data-action="mfg-approve" data-key="' + key + '">Approve &amp; Continue</button>';
+  } else if(ap.stage === 'inspecting'){
+    actionsHtml = '<p class="pill bad">First article failed inspection.</p>' +
+      '<h4 class="section-title">Corrections</h4>' +
+      '<div class="upgrade-grid">' + Object.keys(MFG_CORRECTIONS).map(function(ck){
+        var c = MFG_CORRECTIONS[ck];
+        return '<button type="button" data-action="mfg-correct" data-key="' + key + '" data-correction="' + ck + '">' + c.label + (c.costCash?' ($'+TOOLS[tmpl.toolKey].price+')':'') + '</button>';
+      }).join('') + '</div>' +
+      '<button type="button" class="danger" style="width:100%; margin-top:.6em;" data-action="mfg-scrap-restart" data-key="' + key + '">Scrap Part &amp; Restart Setup</button>';
+  } else {
+    actionsHtml = '<p class="muted">Correction in progress &mdash; return to the First Article tab to re-run.</p>';
+  }
+
+  return '<table><thead><tr><th>Dimension</th><th>Target</th><th>Measured</th><th>Result</th></tr></thead><tbody>' + rows + '</tbody></table>' + issuesHtml + actionsHtml;
+}
+
+/* ---- Production tab ---- */
+function mfgProductionTabHtml(tmpl, key){
+  var ap = state.mfgActive;
+  if(!ap || ap.tmplKey !== key) return '<p class="muted">Not approved for production yet.</p>';
+  var confLabel = mfgConfidenceLabel(ap.confidence);
+  var maxBatch = mfgMaxBatch(ap.confidence);
+  var remainingQty = Math.max(0, ap.qtyTarget - ap.goodCount);
+
+  var statsHtml = '<div class="stat-grid">' +
+    statBox('Confidence', confLabel) +
+    statBox('Good parts', ap.goodCount + ' / ' + ap.qtyTarget) +
+    statBox('Scrap', ap.scrapCount) +
+    statBox('Blanks left', ap.blanksInStock) +
+    statBox('Tool condition', Math.round(state.tools[tmpl.toolKey].condition) + '%') +
+  '</div>';
+
+  var runningHtml = '';
+  if(ap.stage === 'production' && !ap.paused){
+    var frac = clamp(ap.elapsedSim/Math.max(1,ap.totalSim),0,1);
+    runningHtml = mfgSpeedRowHtml() +
+      '<div class="mill-mini" id="mfg-mill" style="max-width:280px; margin:.6em auto;" aria-hidden="true">' +
+        '<div id="mfg-mill-svg">' + buildPartVisualSVG(tmpl, 'operation', { stockId: ap.plan.stockId, completedFeatureIds: ap.completedFeatureIds }) + '</div>' +
+        '<div class="chip-layer"></div>' +
+      '</div>' +
+      '<div class="bar-track"><div class="bar-fill" id="mfg-progress-fill" style="width:' + (frac*100) + '%"></div></div>' +
+      '<p class="muted" id="mfg-progress-text">Running batch &mdash; ' + ap.batchRemaining + ' part(s) left in this batch.</p>';
+  } else if(ap.paused && ap.stopReason){
+    runningHtml = '<p class="pill ' + (ap.stopReason==='complete'?'good':'warn') + '">Stopped: ' + mfgStopReasonText(ap.stopReason) + '.</p>';
+  }
+
+  var batchHtml = '';
+  if(remainingQty > 0 && (ap.stage === 'approved' || (ap.stage === 'production' && ap.paused))){
+    batchHtml = '<h4 class="section-title">Run a Batch</h4><p class="muted" style="font-size:.82rem;">Max unattended batch at ' + confLabel + ' confidence: ' + (maxBatch>999?'no limit':maxBatch) + '.</p>' +
+      '<div class="row">' + [1,2,5,10].filter(function(n){return n<=remainingQty;}).map(function(n){
+        return '<button type="button" data-action="mfg-run-batch" data-key="' + key + '" data-size="' + n + '" ' + (n>maxBatch?'disabled':'') + '>Run ' + n + '</button>';
+      }).join('') + '<button type="button" data-action="mfg-run-batch" data-key="' + key + '" data-size="remaining" ' + (remainingQty>maxBatch?'disabled':'') + '>Run Remaining (' + remainingQty + ')</button></div>';
+  }
+
+  var shipHtml = '';
+  if(remainingQty <= 0 || (ap.blanksInStock<=0) || state.tools[tmpl.toolKey].condition<=3){
+    shipHtml = '<button type="button" class="primary" style="width:100%; margin-top:.8em;" data-action="mfg-ship" data-key="' + key + '">Complete &amp; Ship Job</button>';
+  }
+
+  return statsHtml + runningHtml + batchHtml + shipHtml;
+}
+
 /* ============================== UTIL ============================== */
 
 function clamp(v,lo,hi){ return Math.max(lo, Math.min(hi, v)); }
@@ -456,6 +1576,10 @@ function defaultState(){
     upgrades: { maintenanceBench:false, betterTooling:false, inspectionPackage:false, workholding:false, mistCoolant:false, camSoftware:false },
     board: [],
     activeProduction: null,
+    mfgPrep: {},
+    mfgActive: null,
+    mfgBoard: ['flatPlate','pocketBlock','lBracket'],
+    mfgLastTickAt: Date.now(),
     stats: {
       jobsCompleted:0, tier2Completed:0, onTimeCount:0, lateCount:0,
       totalRevenue:0, totalProfit:0, totalScrapUnits:0, totalUnits:0, bestJobProfit:0,
@@ -490,6 +1614,10 @@ function loadGame(){
     if(!Array.isArray(data.history)) data.history = [];
     if(!isNum(data.cash)) data.cash = base.cash;
     if(!isNum(data.reputation)) data.reputation = base.reputation;
+    if(!data.mfgPrep || typeof data.mfgPrep !== 'object') data.mfgPrep = {};
+    if(!Array.isArray(data.mfgBoard)) data.mfgBoard = base.mfgBoard.slice();
+    if(data.mfgActive && typeof data.mfgActive !== 'object') data.mfgActive = null;
+    if(!isNum(data.mfgLastTickAt)) data.mfgLastTickAt = Date.now();
     return data;
   }catch(e){
     return null;
@@ -504,6 +1632,7 @@ function migrateSave(data){
 function saveGame(manual){
   if(!state) return false;
   state.version = SAVE_VERSION;
+  state.mfgLastTickAt = Date.now();
   var ok = false;
   try{
     var json = JSON.stringify(state);
@@ -717,7 +1846,7 @@ function difficultyDotsHtml(diff){
 /* ============================== PRODUCTION ============================== */
 
 function startProduction(jb, setup, priceInfo){
-  if(state.activeProduction) return false;
+  if(mfgMachineBusy()) return false;
   var metrics = computeMetrics(jb, setup);
   state.activeProduction = {
     job: jb,
@@ -785,6 +1914,10 @@ function productionTick(){
     }
     render();
   }
+
+  mfgTickPreps(dt);
+  mfgTickActive(dt);
+
   requestAnimationFrame(productionTick);
 }
 requestAnimationFrame(productionTick);
@@ -1077,21 +2210,24 @@ function openModal(innerHtml, extraClass){
 function closeModal(){
   var root = document.getElementById('modal-root');
   root.innerHTML = '';
+  openMfgTmplKey = null;
 }
 
 /* ============================== HEADER / MASTER RENDER ============================== */
 
 function render(){
   if(!state) return;
+  try{ window.__debugGame = state; }catch(e){}
   document.getElementById('stat-cash').textContent = fmtMoney(state.cash);
   document.getElementById('stat-rep').textContent = Math.round(state.reputation);
   document.getElementById('stat-shop').textContent = state.shopLevel;
 
+  var mfgRunning = state.mfgActive && (state.mfgActive.stage==='firstArticle' || state.mfgActive.stage==='production') && !state.mfgActive.paused;
   var speedBtns = document.querySelectorAll('#speed-controls button');
   speedBtns.forEach(function(b){
     var s = parseInt(b.getAttribute('data-speed'),10);
     b.setAttribute('aria-pressed', s===state.speed ? 'true':'false');
-    b.disabled = !state.activeProduction || state.activeProduction.phase !== 'running';
+    b.disabled = !((state.activeProduction && state.activeProduction.phase === 'running') || mfgRunning);
   });
 
   var ms = milestoneStatus();
@@ -1102,6 +2238,8 @@ function render(){
   renderProduction();
   renderUpgrades();
   renderRecords();
+  renderBlueprintJobs();
+  if(openMfgTmplKey && document.getElementById('mfg-modal-body')) renderMfgModalContent();
 
   var gm = document.getElementById('settings-mode-guided');
   var mm = document.getElementById('settings-mode-machinist');
@@ -1116,7 +2254,7 @@ function render(){
 function renderJobBoard(){
   var host = document.getElementById('job-board');
   if(!host) return;
-  if(state.activeProduction){
+  if(mfgMachineBusy()){
     host.innerHTML = '<div class="card"><p>Your machine is busy. Finish the current job in the <b>Production</b> tab before accepting a new one.</p></div>';
     return;
   }
@@ -1437,6 +2575,17 @@ function renderProduction(){
     active.dataset.jobId = '';
     var mm = document.getElementById('mill-mini-idle');
     if(mm) mm.innerHTML = millSvg(false);
+    var idleMsg = document.getElementById('production-idle-msg');
+    var idleMfgBtn = document.getElementById('production-idle-mfg-btn');
+    if(state.mfgActive){
+      var mfgTmpl = MFG_JOBS[state.mfgActive.tmplKey];
+      idleMsg.textContent = 'The MicroMill is running a blueprint job: ' + mfgTmpl.part + ' (' + mfgStageStatusLabel(state.mfgActive.stage) + ').';
+      idleMfgBtn.classList.remove('hidden');
+      idleMfgBtn.setAttribute('data-key', state.mfgActive.tmplKey);
+    } else {
+      idleMsg.textContent = 'No active job. Accept a job from the Jobs tab to begin production.';
+      idleMfgBtn.classList.add('hidden');
+    }
     return;
   }
   idle.classList.add('hidden');
@@ -1829,7 +2978,24 @@ function continueGame(){
   var loaded = loadGame();
   if(!loaded){ toast('No saved shop found — starting a new one.', 'bad'); startNewGame(); return; }
   state = loaded;
+  var elapsedSec = Math.max(0, (Date.now() - (state.mfgLastTickAt || Date.now()))/1000);
+  var offlineReport = mfgSimulateOffline(elapsedSec);
+  state.mfgLastTickAt = Date.now();
   beginGameSession();
+  if(offlineReport){ showOfflineReportModal(offlineReport, elapsedSec); }
+}
+
+function showOfflineReportModal(report, elapsedSec){
+  var away = fmtTime(elapsedSec).replace(':', 'm ') + 's';
+  var lines = [];
+  lines.push('While you were away for ' + away + ', the MicroMill kept running <b>' + report.partLabel + '</b>.');
+  lines.push('Produced <b>' + report.goodMade + '</b> good part(s)' + (report.scrapMade ? ' and scrapped <b>' + report.scrapMade + '</b>' : '') + ', consuming ' + report.blanksUsed + ' blank(s).');
+  if(report.stopped){ lines.push('Production stopped because ' + mfgStopReasonText(report.stopped) + '.'); }
+  openModal(
+    '<div class="modal-header"><h2>Welcome Back</h2><button class="close-x" data-action="close-modal" aria-label="Close">&times;</button></div>' +
+    lines.map(function(l){ return '<p>' + l + '</p>'; }).join('') +
+    '<button type="button" class="primary" style="width:100%; margin-top:.6em;" data-action="close-modal">Continue</button>'
+  );
 }
 
 function resetGame(){
@@ -2040,6 +3206,105 @@ document.addEventListener('click', function(e){
     case 'tut-back': tutorialBack(); break;
     case 'tut-skip': finishTutorial(); break;
 
+    case 'open-mfg-job':
+      openMfgModal(el.getAttribute('data-key'));
+      break;
+    case 'mfg-tab': {
+      var wantTab = el.getAttribute('data-tab');
+      var idxWanted = MFG_TABS.findIndex(function(t){ return t.key === wantTab; });
+      var curKey = openMfgTmplKey;
+      var curUnlocked = MFG_STAGE_TAB_INDEX[mfgCurrentStageKey(curKey)] || 0;
+      if(idxWanted <= curUnlocked){ mfgActiveTab = wantTab; renderMfgModalContent(); }
+      break;
+    }
+    case 'mfg-partview':
+      mfgPartView = el.getAttribute('data-view');
+      renderMfgModalContent();
+      break;
+    case 'mfg-advance': {
+      var advKey = el.getAttribute('data-key');
+      var advTo = el.getAttribute('data-to');
+      var advPrep = state.mfgPrep[advKey];
+      if(advPrep && advPrep.stage === 'blueprint' && advTo === 'plan'){
+        mfgAdvancePrepStage(advKey, 'plan');
+      }
+      mfgActiveTab = (advTo === 'programming-start') ? 'programming' : advTo;
+      renderMfgModalContent();
+      break;
+    }
+    case 'mfg-begin-programming':
+      withLock(function(){
+        var pk = el.getAttribute('data-key');
+        if(mfgBeginProgramming(pk)){ renderMfgModalContent(); toast('Programming started.', 'good'); }
+      });
+      break;
+    case 'mfg-setup-machine':
+      withLock(function(){
+        var sk = el.getAttribute('data-key');
+        if(mfgSetupOnMachine(sk)){
+          mfgActiveTab = 'setup';
+          renderMfgModalContent();
+          renderBlueprintJobs();
+          toast('Loaded on the machine.', 'good');
+        } else {
+          toast('Machine is busy.', 'bad');
+        }
+      });
+      break;
+    case 'mfg-run-first-article':
+      withLock(function(){
+        var fk = el.getAttribute('data-key');
+        if(mfgConfirmSetupRunFirstArticle()){ mfgActiveTab = 'firstArticle'; renderMfgModalContent(); }
+      });
+      break;
+    case 'mfg-rerun':
+      withLock(function(){
+        if(mfgRerunAfterCorrection()){ mfgActiveTab = 'firstArticle'; renderMfgModalContent(); }
+      });
+      break;
+    case 'mfg-approve':
+      withLock(function(){
+        if(mfgApproveProduction()){
+          var apNow = state.mfgActive;
+          mfgActiveTab = (apNow && apNow.stage === 'firstArticle') ? 'firstArticle' : 'production';
+          renderMfgModalContent();
+          renderBlueprintJobs();
+          toast('Approved.', 'good');
+        }
+      });
+      break;
+    case 'mfg-correct':
+      withLock(function(){
+        var ck = el.getAttribute('data-correction');
+        if(mfgApplyCorrection(ck)){ mfgActiveTab = 'firstArticle'; renderMfgModalContent(); toast('Correction applied.', 'good'); }
+        else toast('Not enough cash.', 'bad');
+      });
+      break;
+    case 'mfg-scrap-restart':
+      withLock(function(){
+        if(mfgScrapAndRestart()){ mfgActiveTab = 'setup'; renderMfgModalContent(); }
+      });
+      break;
+    case 'mfg-run-batch':
+      withLock(function(){
+        var bk = el.getAttribute('data-key');
+        var sizeAttr = el.getAttribute('data-size');
+        var size = sizeAttr === 'remaining' ? 'remaining' : parseInt(sizeAttr, 10);
+        if(mfgStartBatch(size)){ renderMfgModalContent(); toast('Batch started.', 'good'); }
+      });
+      break;
+    case 'mfg-ship':
+      withLock(function(){
+        var summary = mfgShipJob();
+        if(summary){
+          closeModal();
+          renderBlueprintJobs();
+          render();
+          toast('Shipped! Net profit ' + fmtMoney(summary.profit), 'good');
+        }
+      });
+      break;
+
     case 'close-modal':
       closeModal();
       break;
@@ -2076,6 +3341,29 @@ document.addEventListener('keydown', function(e){
     var root = document.getElementById('modal-root');
     if(root && root.innerHTML.trim()) closeModal();
   }
+});
+
+document.addEventListener('change', function(e){
+  var t = e.target;
+  var action = t.getAttribute && t.getAttribute('data-action-change');
+  if(!action || !openMfgTmplKey) return;
+  var prep = state.mfgPrep[openMfgTmplKey];
+  if(!prep) return;
+  var idxAttr = t.getAttribute('data-setup-idx');
+  var idx = idxAttr != null ? parseInt(idxAttr, 10) : null;
+  if(action === 'mfg-set-stock' && prep.stage === 'plan'){
+    prep.plan.stockId = t.value;
+  } else if(action === 'mfg-set-workholding' && prep.stage === 'plan' && idx != null){
+    prep.plan.setups[idx].workholdingId = t.value;
+  } else if(action === 'mfg-set-tool' && prep.stage === 'plan' && idx != null){
+    prep.program.setups[idx].toolKey = t.value;
+  } else if(action === 'mfg-set-preset' && prep.stage === 'plan' && idx != null){
+    prep.program.setups[idx].preset = t.value;
+  } else {
+    return;
+  }
+  scheduleAutosave();
+  renderMfgModalContent();
 });
 
 /* ============================== INIT ============================== */
