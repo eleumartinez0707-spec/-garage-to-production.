@@ -145,7 +145,7 @@ main{ flex:1; padding:.8em; padding-bottom:2.5em; max-width:900px; margin:0 auto
 .quick-jobs-collapse{ margin-top:1.6em; border-top:1px solid var(--border); padding-top:.4em; }
 .quick-jobs-collapse summary{ cursor:pointer; font-size:1.15rem; font-weight:700; padding:.6em 0; min-height:44px; display:flex; align-items:center; gap:.4em; list-style:none; }
 .quick-jobs-collapse summary::-webkit-details-marker{ display:none; }
-.quick-jobs-collapse summary::before{ content:"â–¸"; display:inline-block; transition:transform .15s ease; }
+.quick-jobs-collapse summary::before{ content:"▸"; display:inline-block; transition:transform .15s ease; }
 .quick-jobs-collapse[open] summary::before{ transform:rotate(90deg); }
 .upgrade-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:.8em; }
 .stat-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:.6em; margin:.6em 0; }
@@ -365,8 +365,8 @@ body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behav
 
   <div class="start-control-row">
     <div class="mode-select" role="group" aria-label="Choose a play mode">
-      <button type="button" class="mode-btn mode-btn-clean" data-action="set-start-mode" data-mode="guided" aria-pressed="true" aria-label="Clean Hands â€” Beginner guided mode"></button>
-      <button type="button" class="mode-btn mode-btn-shop" data-action="set-start-mode" data-mode="machinist" aria-pressed="false" aria-label="Shop Hands â€” Experienced machinist mode"></button>
+      <button type="button" class="mode-btn mode-btn-clean" data-action="set-start-mode" data-mode="guided" aria-pressed="true" aria-label="Clean Hands — Beginner guided mode"></button>
+      <button type="button" class="mode-btn mode-btn-shop" data-action="set-start-mode" data-mode="machinist" aria-pressed="false" aria-label="Shop Hands — Experienced machinist mode"></button>
     </div>
     <button type="button" class="start-settings-btn" data-action="open-start-settings" aria-label="Settings">Settings</button>
   </div>
@@ -418,7 +418,7 @@ body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behav
       <div class="job-grid" id="blueprint-jobs"></div>
 
       <details class="quick-jobs-collapse">
-        <summary class="section-title">Quick Jobs <span class="muted" style="font-weight:400;">(legacy jobs â€” no blueprint workflow)</span></summary>
+        <summary class="section-title">Quick Jobs <span class="muted" style="font-weight:400;">(legacy jobs — no blueprint workflow)</span></summary>
         <p class="muted">Simple jobs: accept, pick a setup, and run production straight away.</p>
         <div class="job-grid" id="job-board"></div>
       </details>
@@ -615,7 +615,7 @@ var JOB_TEMPLATES = [
 var UPGRADES = {
   maintenanceBench:  { key:'maintenanceBench',  label:'Maintenance Bench',  cost:600,  desc:'Faster, more effective maintenance. Slows condition loss over time.' },
   betterTooling:      { key:'betterTooling',      label:'Better Tooling Package', cost:900,  desc:'Unlocks mild steel jobs and reduces tool wear by 15%.' },
-  inspectionPackage:  { key:'inspectionPackage',  label:'Inspection Package', cost:750,  desc:'Sharper measurement â€” more accurate inspection results. Required to move out of the garage.' },
+  inspectionPackage:  { key:'inspectionPackage',  label:'Inspection Package', cost:750,  desc:'Sharper measurement — more accurate inspection results. Required to move out of the garage.' },
   workholding:        { key:'workholding',        label:'Workholding Upgrade', cost:500,  desc:'Stiffer vise and fixturing reduces chatter risk and workholding events.' },
   mistCoolant:        { key:'mistCoolant',        label:'Mist Lubrication / Coolant Upgrade', cost:650, desc:'Unlocks effective mist cooling, cutting heat risk.' },
   camSoftware:        { key:'camSoftware',        label:'CAM Software Upgrade', cost:1100, desc:'Optimized toolpaths: 10% faster cycles and an auto-recommend setup button.' }
@@ -691,7 +691,7 @@ var MFG_JOBS = {
     finished:{ length:120, width:60, thickness:6 },
     setupsRequired:1,
     setupDefs:[
-      { n:1, label:'Setup 1 â€” Face, Drill & Engrave', faceUp:'top', recommendedWorkholding:['standardJaws','parallels'] }
+      { n:1, label:'Setup 1 — Face, Drill & Engrave', faceUp:'top', recommendedWorkholding:['standardJaws','parallels'] }
     ],
     features:[
       mfgFeature({ id:'f1', type:'face', face:'top', setupMin:1, label:'Top face' }),
@@ -745,7 +745,7 @@ var MFG_JOBS = {
     ],
     setupsRequired:1,
     setupDefs:[
-      { n:1, label:'Setup 1 â€” Profile & Opener Cutout', faceUp:'top', recommendedWorkholding:['standardJaws','parallels'] }
+      { n:1, label:'Setup 1 — Profile & Opener Cutout', faceUp:'top', recommendedWorkholding:['standardJaws','parallels'] }
     ],
     features:[
       mfgFeature({ id:'f1', type:'face', face:'top', setupMin:1, label:'Top face' }),
@@ -785,7 +785,7 @@ var MFG_JOBS = {
     recommendedTabPlacements:[3,8,10,14],
     setupsRequired:1,
     setupDefs:[
-      { n:1, label:'Setup 1 â€” Drill Holes, Tabbed Contour & Cleanup', faceUp:'top',
+      { n:1, label:'Setup 1 — Drill Holes, Tabbed Contour & Cleanup', faceUp:'top',
         recommendedWorkholding:['tabs'],
         note:'Drill every hole while the plate is fully supported. Then cut the 0.145 in outer contour with a 1/8 in end mill, leaving four tabs. Break the tabs off and sand them flush after unloading.' }
     ],
@@ -1437,12 +1437,12 @@ function mfgCrashRoll(tmpl, plan){
   var chance = bad*0.16 + warn*0.05;
   if(chance <= 0 || Math.random() >= chance) return null;
   var messages = bad > 0 ? [
-    'CRASH â€” the part shifted mid-cut and the endmill snapped.',
-    'CRASH â€” the cutter dug into the vise jaws. Tool destroyed.',
-    'CRASH â€” weak clamping let the part lift into the spindle. Endmill broken.'
+    'CRASH — the part shifted mid-cut and the endmill snapped.',
+    'CRASH — the cutter dug into the vise jaws. Tool destroyed.',
+    'CRASH — weak clamping let the part lift into the spindle. Endmill broken.'
   ] : [
-    'CRASH â€” marginal workholding let the part walk, and the tool couldnâ€™t take it.',
-    'CRASH â€” chatter from the loose setup snapped the cutter.'
+    'CRASH — marginal workholding let the part walk, and the tool couldn’t take it.',
+    'CRASH — chatter from the loose setup snapped the cutter.'
   ];
   return messages[Math.floor(Math.random()*messages.length)];
 }
@@ -1907,9 +1907,9 @@ function renderBlueprintJobs(){
     var stageKey = mfgCurrentStageKey(key);
     var onMachine = state.mfgActive && state.mfgActive.tmplKey === key;
     var parked = mfgParkedJob(key);
-    var statusLabel = onMachine ? ('On Machine â€” ' + mfgStageStatusLabel(stageKey)) :
-      (parked ? ('Off Machine â€” ' + parked.goodCount + '/' + parked.qtyTarget + ' complete') :
-      (state.mfgPrep[key] ? ('In Prep â€” ' + mfgStageStatusLabel(stageKey)) : 'New Blueprint'));
+    var statusLabel = onMachine ? ('On Machine — ' + mfgStageStatusLabel(stageKey)) :
+      (parked ? ('Off Machine — ' + parked.goodCount + '/' + parked.qtyTarget + ' complete') :
+      (state.mfgPrep[key] ? ('In Prep — ' + mfgStageStatusLabel(stageKey)) : 'New Blueprint'));
     var statusCls = onMachine ? 'good' : ((parked || state.mfgPrep[key]) ? 'warn' : '');
     var customerName = (onMachine && state.mfgActive.customerName) ||
       (parked && parked.customerName) ||
@@ -1931,7 +1931,7 @@ function renderBlueprintJobs(){
 function mfgStageStatusLabel(stageKey){
   return { blueprint:'Reviewing Blueprint', plan:'Planning', programming:'Programming', readyForSetup:'Ready for Setup',
     setup:'Setup', firstArticle:'Running First Article', correcting:'Correcting', inspecting:'Inspecting',
-    approved:'Approved â€” Ready to Run', production:'In Production' }[stageKey] || stageKey;
+    approved:'Approved — Ready to Run', production:'In Production' }[stageKey] || stageKey;
 }
 
 function openMfgModal(key){
@@ -2003,9 +2003,9 @@ function mfgUpdateLiveProgress(){
   var textEl = document.getElementById('mfg-progress-text');
   if(textEl){
     if(mfgActiveTab === 'firstArticle'){
-      textEl.textContent = 'First article ' + (ap.firstArticleCount+1) + ' of ' + ap.requiredFirstArticles + ' required Â· ' + fmtTime(Math.max(0,ap.totalSim-ap.elapsedSim)) + ' remaining';
+      textEl.textContent = 'First article ' + (ap.firstArticleCount+1) + ' of ' + ap.requiredFirstArticles + ' required · ' + fmtTime(Math.max(0,ap.totalSim-ap.elapsedSim)) + ' remaining';
     } else {
-      textEl.textContent = ((ap.partsPerCycle||1)===2 ? 'Running two nested nameplates in one cycle' : 'Running batch') + ' â€” ' + ap.batchRemaining + ' part(s) left in this batch.';
+      textEl.textContent = ((ap.partsPerCycle||1)===2 ? 'Running two nested nameplates in one cycle' : 'Running batch') + ' — ' + ap.batchRemaining + ' part(s) left in this batch.';
     }
   }
   // The tab body itself isn't rebuilt on this lightweight path, so the
@@ -2366,8 +2366,8 @@ function mfgOrientationHtml(tmpl, key, editable){
 
   var quality = mfgScoreOrientation(tmpl, orientation);
   var feedback = quality >= 0.75 ?
-    { cls:'good', text:'Good choice â€” most of Setup 1\'s features are reachable from here.' } :
-    { cls:'bad', text:'This face blocks Setup 1\'s features â€” you would need to flip immediately.' };
+    { cls:'good', text:'Good choice — most of Setup 1\'s features are reachable from here.' } :
+    { cls:'bad', text:'This face blocks Setup 1\'s features — you would need to flip immediately.' };
 
   return '<div class="minigame">' +
     '<p class="minigame-instruction">Which face should be machined first?</p>' +
@@ -2575,9 +2575,9 @@ function mfgTraceContourHtml(tmpl, key, contourDef, plan, editable){
 
   var resultHtml = '';
   if(done){
-    var fb = score >= 0.8 ? { cls:'good', text:'Clean contour â€” CAM will follow this path closely.' } :
+    var fb = score >= 0.8 ? { cls:'good', text:'Clean contour — CAM will follow this path closely.' } :
       score >= 0.5 ? { cls:'warn', text:'Traced, but wandered off the path in places.' } :
-      { cls:'bad', text:'Incomplete or messy trace â€” try again.' };
+      { cls:'bad', text:'Incomplete or messy trace — try again.' };
     resultHtml = '<div class="minigame-result"><span class="pill ' + fb.cls + '">' + fb.text + '</span></div>';
   }
 
@@ -2765,7 +2765,7 @@ function mfgLBracketTabPlacementHtml(tmpl,key,editable){
     '<div class="minigame-result">'+check.issues.map(function(i){ return '<span class="pill '+(i.level==='bad'?'bad':'warn')+'">'+i.text+'</span>'; }).join('')+'</div>';
   return '<div class="minigame">' +
     '<p class="minigame-instruction">Choose the holding-tab locations.</p>' +
-    '<p class="muted" style="font-size:.82rem;">Tap the numbered contour markers. Aim for four tabs, keep them on straight runs 8â€“22 mm from a corner, and spread support around the part.</p>' +
+    '<p class="muted" style="font-size:.82rem;">Tap the numbered contour markers. Aim for four tabs, keep them on straight runs 8–22 mm from a corner, and spread support around the part.</p>' +
     '<svg viewBox="0 0 '+geo.playW+' '+geo.playH+'" class="minigame-stage" shape-rendering="crispEdges" aria-label="Interactive L bracket tab placement">' +
       '<path d="'+stockPath+'" fill="#272d36" stroke="#5a6474" stroke-width="1.5"/>' +
       '<path d="'+partPath+'" fill="#aeb8c5" stroke="#111820" stroke-width="'+contourPx.toFixed(1)+'" stroke-linejoin="round"/>' +
@@ -2853,7 +2853,7 @@ function mfgProgrammingTabHtml(tmpl, key){
     var s = program.setups[idx];
     var featuresForSetup = tmpl.features.filter(function(f){ return f.setupMin === sd.n; });
     var stepsHtml = featuresForSetup.map(function(f){
-      return '<li>' + f.label + ': ' + f.steps.map(function(sk){ return OP_STEP_LABELS[sk]; }).join(' â†’ ') + '</li>';
+      return '<li>' + f.label + ': ' + f.steps.map(function(sk){ return OP_STEP_LABELS[sk]; }).join(' → ') + '</li>';
     }).join('');
     var toolOptions = ['em18','em14'].map(function(tk){ return '<option value="'+tk+'"' + (s.toolKey===tk?' selected':'') + '>' + TOOLS[tk].shortLabel + '</option>'; }).join('');
     var presetOptions = ['conservative','balanced','aggressive'].map(function(p){
@@ -3028,7 +3028,7 @@ function mfgProductionTabHtml(tmpl, key){
     var busyPart=state.mfgActive ? MFG_JOBS[state.mfgActive.tmplKey].part : '';
     runningHtml='<p class="pill warn">Saved off machine. Progress is preserved.</p>' +
       '<button type="button" class="primary" style="width:100%; margin-top:.5em;" data-action="mfg-resume-job" data-key="'+key+'" '+(mfgMachineBusy()?'disabled':'')+'>' +
-      (mfgMachineBusy() ? 'Machine Busy â€” '+busyPart : 'Load This Job on Machine') + '</button>';
+      (mfgMachineBusy() ? 'Machine Busy — '+busyPart : 'Load This Job on Machine') + '</button>';
   } else if(ap.stage === 'production' && !ap.paused){
     var frac = clamp(ap.elapsedSim/Math.max(1,ap.totalSim),0,1);
     var runLabel=(ap.partsPerCycle||1)===2 ? 'Running two nested nameplates in one cycle' : 'Running batch';
@@ -3052,7 +3052,7 @@ function mfgProductionTabHtml(tmpl, key){
         return '<button type="button" data-action="mfg-run-batch" data-key="' + key + '" data-size="' + n + '" ' + (n>maxBatch?'disabled':'') + '>Run ' + n + '</button>';
       }).join('') + '<button type="button" data-action="mfg-run-batch" data-key="' + key + '" data-size="remaining" ' + (remainingQty>maxBatch?'disabled':'') + '>Run Remaining (' + remainingQty + ')</button></div>' +
       (key==='nameplate' && remainingQty>=2 ?
-        '<button type="button" style="width:100%; margin-top:.5em; border-color:#47b8ff;" data-action="mfg-run-nested" data-key="'+key+'" '+(maxBatch<2?'disabled':'')+'>Run 2 Nested â€” One Shared Cycle</button>' +
+        '<button type="button" style="width:100%; margin-top:.5em; border-color:#47b8ff;" data-action="mfg-run-nested" data-key="'+key+'" '+(maxBatch<2?'disabled':'')+'>Run 2 Nested — One Shared Cycle</button>' +
         '<p class="muted" style="font-size:.78rem;">Two nameplates share one larger setup, taking about 45% longer than a single cycle instead of twice as long.</p>' : '');
   }
 
@@ -3639,11 +3639,11 @@ function finishEvent(success, silent){
     ap.metrics.dimensionalRisk = clamp(ap.metrics.dimensionalRisk + 14, 0, 100);
     ap.metrics.chatterRisk = clamp(ap.metrics.chatterRisk + 8, 0, 100);
     if(ev && ev.type === 'coolant'){ ap.metrics.heatRisk = clamp(ap.metrics.heatRisk+16,0,100); state.machine.chipBuildup = clamp(state.machine.chipBuildup+15,0,100); }
-    toast('Event not resolved cleanly â€” risk increased.', 'bad');
+    toast('Event not resolved cleanly — risk increased.', 'bad');
   } else if(!silent){
     ap.metrics.dimensionalRisk = clamp(ap.metrics.dimensionalRisk - 6, 0, 100);
     if(ev && ev.type === 'coolant'){ state.machine.chipBuildup = clamp(state.machine.chipBuildup-20,0,100); }
-    toast('Handled it â€” production continues.', 'good');
+    toast('Handled it — production continues.', 'good');
   }
   ap.eventsResolved++;
   ap.pendingEvent = null;
@@ -3683,7 +3683,7 @@ function finishProduction(){
     late: late, deadlineElapsedSec: deadlineElapsedSec
   };
   ap.late = late;
-  toast('Production complete â€” inspect your parts.', 'good');
+  toast('Production complete — inspect your parts.', 'good');
   render();
 }
 
@@ -4091,14 +4091,14 @@ function refreshSetupPreview(){
   if(state.mode==='guided'){
     var tipEl = document.getElementById('preset-tip');
     if(tipEl){
-      var tips = { conservative: 'Slower, safer.', balanced: 'Recommended â€” safe and steady.', aggressive: 'Faster, riskier.' };
+      var tips = { conservative: 'Slower, safer.', balanced: 'Recommended — safe and steady.', aggressive: 'Faster, riskier.' };
       tipEl.textContent = tips[currentPresetChoice];
     }
     var compositeRisk = Math.max(m.heatRisk, m.chatterRisk, m.dimensionalRisk);
     var riskInfo = riskLabel(compositeRisk);
     var shortWarn = '';
-    if(m.machineLoadPct > 100) shortWarn = 'Heavy cut â€” higher chance of stalls or damage.';
-    else if(compositeRisk >= 70) shortWarn = 'High risk â€” expect more scrap.';
+    if(m.machineLoadPct > 100) shortWarn = 'Heavy cut — higher chance of stalls or damage.';
+    else if(compositeRisk >= 70) shortWarn = 'High risk — expect more scrap.';
     else if(compositeRisk >= 40) shortWarn = 'Moderate risk.';
     host.innerHTML =
       '<div class="stat-grid">' +
@@ -4111,9 +4111,9 @@ function refreshSetupPreview(){
   }
 
   var warnings = [];
-  if(m.machineLoadPct > 100) warnings.push('Machine load is very high â€” increased risk of stalls and machine wear.');
-  if(m.chatterRisk > 65) warnings.push('High chatter risk â€” expect a rougher finish and possible dimensional issues.');
-  if(m.heatRisk > 65) warnings.push('High heat risk â€” consider mist lubrication or a lighter cut.');
+  if(m.machineLoadPct > 100) warnings.push('Machine load is very high — increased risk of stalls and machine wear.');
+  if(m.chatterRisk > 65) warnings.push('High chatter risk — expect a rougher finish and possible dimensional issues.');
+  if(m.heatRisk > 65) warnings.push('High heat risk — consider mist lubrication or a lighter cut.');
   if(m.chipLoadDeviation > 0.4) warnings.push('Chip load is far outside the recommended range for this material.');
 
   host.innerHTML =
@@ -4532,10 +4532,10 @@ function renderProduction(){
   var toolCond = state.tools[ap.toolKeyUsed].condition;
 
   var warnings = [];
-  if(m.machineLoadPct>105) warnings.push('Machine is overloaded â€” condition dropping faster.');
-  if(toolCond<25) warnings.push('Tool is nearly worn out â€” consider replacing it after this job.');
+  if(m.machineLoadPct>105) warnings.push('Machine is overloaded — condition dropping faster.');
+  if(toolCond<25) warnings.push('Tool is nearly worn out — consider replacing it after this job.');
   if(deadlineRemain<20 && deadlineRemain>0) warnings.push('Deadline approaching soon!');
-  if(deadlineRemain<=0) warnings.push('Deadline passed â€” this job will ship late.');
+  if(deadlineRemain<=0) warnings.push('Deadline passed — this job will ship late.');
 
   var qualityScore = clamp(100 - m.dimensionalRisk*0.5 - Math.max(0,50-m.finishScore)*0.5, 0, 100);
   var qualityLabel = qualityScore>=75?'Good':qualityScore>=50?'Fair':'At risk';
@@ -4594,11 +4594,11 @@ function eventHtml(ev){
     var nums=[1,2,3,4,5,6];
     return '<div class="card event-modal" style="margin-top:1em; background:var(--panel2);"><h3>Loose Workholding!</h3>' +
       '<p class="muted">Tighten the bolts in the highlighted order before time runs out.</p>' +
-      '<p>Order so far: ' + (ev.progress.length ? ev.progress.join(' â†’ ') : '(none yet)') + ' &mdash; next: <b>' + (ev.sequence[0]===ev.sequence[ev.progress.length]?'':'') + (ev.progress.length<ev.sequence.length?'bolt highlighted below':'') + '</b></p>' +
+      '<p>Order so far: ' + (ev.progress.length ? ev.progress.join(' → ') : '(none yet)') + ' &mdash; next: <b>' + (ev.sequence[0]===ev.sequence[ev.progress.length]?'':'') + (ev.progress.length<ev.sequence.length?'bolt highlighted below':'') + '</b></p>' +
       '<div class="bolt-grid">' + nums.map(function(n){
         var isNext = ev.sequence[ev.progress.length]===n;
         var done = ev.progress.indexOf(n)!==-1;
-        return '<button type="button" class="bolt-btn' + (done?' done':'') + '" style="' + (isNext&&!done?'outline:3px solid var(--accent);':'') + '" data-action="event-bolt" data-num="' + n + '" ' + (done?'disabled':'') + '>' + n + (done?' âœ“':'') + '</button>';
+        return '<button type="button" class="bolt-btn' + (done?' done':'') + '" style="' + (isNext&&!done?'outline:3px solid var(--accent);':'') + '" data-action="event-bolt" data-num="' + n + '" ' + (done?'disabled':'') + '>' + n + (done?' ✓':'') + '</button>';
       }).join('') + '</div>' +
     '</div>';
   }
@@ -4636,8 +4636,8 @@ function renderInspectionPanel(ap){
   var summary = computeJobSummary(ap);
   return '<h3 style="margin-top:1em;">Inspection Results</h3>' +
     '<div class="stat-grid">' +
-      statBox('Required tolerance', 'Â±' + ap.job.toleranceIn + '"') +
-      statBox('Measured deviation', 'Â±' + res.deviationIn + '"', res.deviationIn>ap.job.toleranceIn?'bad':'good') +
+      statBox('Required tolerance', '±' + ap.job.toleranceIn + '"') +
+      statBox('Measured deviation', '±' + res.deviationIn + '"', res.deviationIn>ap.job.toleranceIn?'bad':'good') +
       statBox('Finish result', res.finishLabel) +
       statBox('Accepted', res.accepted, 'good') +
       statBox('Reworkable', res.rework, res.rework>0?'warn':'') +
@@ -4729,7 +4729,7 @@ function milestoneModalHtml(){
     '<p class="muted">Hit all five milestones to unlock your first commercial shop chapter.</p>' +
     '<ul style="list-style:none; padding:0;">' + st.map(function(s){
       return '<li class="row" style="justify-content:space-between; padding:.4em 0; border-bottom:1px solid var(--border);">' +
-        '<span>' + (s.done?'âœ… ':'â¬œ ') + s.label + '</span>' +
+        '<span>' + (s.done?'✅ ':'⬜ ') + s.label + '</span>' +
         '<span class="muted">' + (s.money?fmtMoney(Math.min(s.cur,s.target))+' / '+fmtMoney(s.target):Math.min(s.cur,s.target)+' / '+s.target) + '</span></li>';
     }).join('') + '</ul>';
 }
@@ -4956,7 +4956,7 @@ function startNewGame(){
 
 function continueGame(){
   var loaded = loadGame();
-  if(!loaded){ toast('No saved shop found â€” starting a new one.', 'bad'); startNewGame(); return; }
+  if(!loaded){ toast('No saved shop found — starting a new one.', 'bad'); startNewGame(); return; }
   state = loaded;
   var elapsedSec = Math.max(0, (Date.now() - (state.mfgLastTickAt || Date.now()))/1000);
   var offlineReport = mfgSimulateOffline(elapsedSec);
