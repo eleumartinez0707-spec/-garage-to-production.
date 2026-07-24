@@ -1038,12 +1038,10 @@ function mfgDefaultProgram(tmpl){
 function mfgProgramSeconds(tmpl, plan){
   var featureCount = tmpl.features.length;
   var setupCount = (plan.setups || []).length || tmpl.setupsRequired;
-  var base = tmpl.baseProgramMinutes * 60;
-  base += featureCount * 3;
-  base += (setupCount - 1) * 15;
+  var base = 4 + featureCount * 0.4 + (setupCount - 1) * 1.5;
   var camMult = state.upgrades.camSoftware ? 0.6 : 1.0;
   var repeatMult = (state.mfgStats && state.mfgStats[tmpl.id]) ? 0.55 : 1.0;
-  return Math.max(15, Math.round(base * camMult * repeatMult));
+  return clamp(Math.round(base * camMult * repeatMult), 3, 10);
 }
 
 /* Placeholder pool for the Name Plate's random Etsy-style customer name --
