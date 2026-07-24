@@ -1,0 +1,78 @@
+{
+  "frameWidth": 80,
+  "frameHeight": 50,
+  "frameCount": 8,
+  "frameTimingMs": [
+    80,
+    80,
+    100,
+    100,
+    100,
+    90,
+    80,
+    80
+  ],
+  "loopDurationMs": 710,
+  "layers": {
+    "background": "mill_bg_static.png",
+    "spindle": "spindle_anim_sheet.png",
+    "coolantOverlay": "coolant_overlay_sheet.png",
+    "chipsOverlay": "chips_overlay_sheet.png"
+  },
+  "tools": {
+    "squareEndmill": "tool_square_endmill.png",
+    "twistDrill": "tool_twist_drill.png"
+  },
+  "splash": "mill_splash_scene.png",
+  "modes": {
+    "idle": {
+      "spindleFrame": 0,
+      "coolant": false,
+      "chips": false
+    },
+    "wet": {
+      "loop": true,
+      "coolant": true,
+      "chips": true
+    },
+    "dry": {
+      "loop": true,
+      "coolant": false,
+      "chips": true
+    }
+  },
+  "frames": [
+    {
+      "index": 0,
+      "name": "idle_high"
+    },
+    {
+      "index": 1,
+      "name": "rapid_down"
+    },
+    {
+      "index": 2,
+      "name": "enter_material"
+    },
+    {
+      "index": 3,
+      "name": "full_cut"
+    },
+    {
+      "index": 4,
+      "name": "continue_cut"
+    },
+    {
+      "index": 5,
+      "name": "small_retract"
+    },
+    {
+      "index": 6,
+      "name": "retract_up"
+    },
+    {
+      "index": 7,
+      "name": "return_idle"
+    }
+  ]
+}
