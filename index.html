@@ -509,7 +509,7 @@ body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behav
 /* ============================== DATA ============================== */
 
 var SAVE_KEY = 'g2p_save';
-var SAVE_VERSION = 3;
+var SAVE_VERSION = 4;
 
 /* Normalized minigame/process scores (0-1, 0.7 = competent-neutral baseline so old
    saves and un-played minigames behave like a reasonably-run job, not a broken one). */
@@ -2897,6 +2897,23 @@ function migrateSave(data){
        Score defaults for any in-flight mfgPrep/mfgActive jobs are merged in
        by loadGame() right after this returns. Nothing here can leave a job
        "stuck" -- every field loadGame() reads has a base-state fallback. */
+  }
+  if(fromVersion < 4 && data.mfgPrep && data.mfgPrep.lBracket){
+    /* v4 reworks the L Bracket from a thick two-setup block into a plate
+       machined holes-first with a tabbed contour. Preserve the player's stock
+       choice and placement, but rebuild the obsolete setup/program so an
+       in-progress plan immediately uses Machined Tabs and the 1/8 in cutter. */
+    var oldBracketPrep = data.mfgPrep.lBracket;
+    var oldBracketPlan = oldBracketPrep.plan || {};
+    var newBracketPlan = mfgComputeDefaultPlan(MFG_JOBS.lBracket);
+    if(oldBracketPlan.stockId) newBracketPlan.stockId = oldBracketPlan.stockId;
+    if(oldBracketPlan.stockPlacement) newBracketPlan.stockPlacement = oldBracketPlan.stockPlacement;
+    if(oldBracketPlan.traceResults) newBracketPlan.traceResults = oldBracketPlan.traceResults;
+    oldBracketPrep.plan = newBracketPlan;
+    oldBracketPrep.program = mfgDefaultProgram(MFG_JOBS.lBracket);
+    if(oldBracketPrep.stage !== 'blueprint') oldBracketPrep.stage = 'plan';
+    oldBracketPrep.programTimeRemaining = 0;
+    oldBracketPrep.programTotalSeconds = 0;
   }
   data.version = SAVE_VERSION;
   return data;
