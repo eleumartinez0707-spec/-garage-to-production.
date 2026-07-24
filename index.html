@@ -992,6 +992,21 @@ function mfgProgramSeconds(tmpl, plan){
   return Math.max(20, Math.round(base * camMult * repeatMult));
 }
 
+/* Placeholder pool for the Name Plate's random Etsy-style customer name --
+   swap in the user's real list whenever it's provided. Re-rolled fresh
+   every time a new Name Plate order is picked up (see mfgStartPrep). */
+var NAMEPLATE_CUSTOMER_NAMES = [
+  'Bartholomew Wigglesworth', 'Debbie Fizzlebottom', 'Chad Sparklepants',
+  'Nigel P. Snugglesworth', 'Doris McWaffle', 'Gary Fartleberry',
+  'Trixie Bumblesnout', 'Reginald Cheddarton', 'Mildred Quacklebush',
+  'Chester Boopington', 'Gertrude Wobblebum', 'Dexter Snickerdoodle',
+  'Priscilla Tinklebell', 'Otis Grumblesworth', 'Wanda Pickleman',
+  'Barnaby Custardface'
+];
+function mfgRandomNameplateCustomer(){
+  return NAMEPLATE_CUSTOMER_NAMES[Math.floor(Math.random()*NAMEPLATE_CUSTOMER_NAMES.length)];
+}
+
 function mfgStartPrep(tmplKey){
   if(state.mfgPrep[tmplKey]) return state.mfgPrep[tmplKey];
   var tmpl = MFG_JOBS[tmplKey];
@@ -1012,7 +1027,8 @@ function mfgStartPrep(tmplKey){
     instanceId: uid(), tmplKey: tmplKey, stage: 'blueprint',
     plan: plan, program: mfgDefaultProgram(tmpl),
     programTimeRemaining: 0, programTotalSeconds: 0,
-    scores: scores
+    scores: scores,
+    customerName: tmplKey === 'nameplate' ? mfgRandomNameplateCustomer() : tmpl.customer
   };
   state.mfgPrep[tmplKey] = prep;
   scheduleAutosave();
@@ -1147,6 +1163,7 @@ function mfgSetupOnMachine(tmplKey){
   var tmpl = MFG_JOBS[tmplKey];
   state.mfgActive = {
     tmplKey: tmplKey, plan: prep.plan, program: prep.program,
+    customerName: prep.customerName || tmpl.customer,
     stage: 'setup', completedFeatureIds: {},
     firstArticleCount: 0, requiredFirstArticles: tmpl.difficulty >= 3 ? 2 : 1,
     confidenceScore: 15, confidence: 'untested',
@@ -1346,7 +1363,7 @@ function mfgShipJob(){
   state.stats.materialJobsCount[tmpl.materialKey] = (state.stats.materialJobsCount[tmpl.materialKey]||0) + 1;
   state.mfgStats = state.mfgStats || {};
   state.mfgStats[tmpl.id] = true;
-  state.history.unshift({ part: tmpl.part, customer: tmpl.customer, profit: profit, result: ap.goodCount>=ap.qtyTarget ? 'Complete' : 'Partial (' + ap.goodCount + '/' + ap.qtyTarget + ')', at: Date.now() });
+  state.history.unshift({ part: tmpl.part, customer: ap.customerName || tmpl.customer, profit: profit, result: ap.goodCount>=ap.qtyTarget ? 'Complete' : 'Partial (' + ap.goodCount + '/' + ap.qtyTarget + ')', at: Date.now() });
   if(state.history.length > 25) state.history.length = 25;
   var summary = { revenue:revenue, matCost:matCost, setupCost:setupCost, profit:profit, goodCount:ap.goodCount, scrapCount:ap.scrapCount, qtyTarget:ap.qtyTarget };
   state.mfgActive = null;
@@ -1445,9 +1462,11 @@ function renderBlueprintJobs(){
     var statusLabel = onMachine ? ('On Machine — ' + mfgStageStatusLabel(stageKey)) :
       (state.mfgPrep[key] ? ('In Prep — ' + mfgStageStatusLabel(stageKey)) : 'New Blueprint');
     var statusCls = onMachine ? 'good' : (state.mfgPrep[key] ? 'warn' : '');
+    var customerName = (onMachine && state.mfgActive.customerName) ||
+      (state.mfgPrep[key] && state.mfgPrep[key].customerName) || tmpl.customer;
     return '<div class="card job-card">' +
       '<div class="spread"><h3 style="margin:0;">' + tmpl.part + (key==='nameplate' ? ' <span class="pill" style="background:var(--accent); color:#1a1200; border-color:var(--accent);">Start Here</span>' : '') + '</h3><span class="pill ' + statusCls + '">' + statusLabel + '</span></div>' +
-      '<div class="muted jc-sub">' + tmpl.customer + ' &middot; P/N ' + tmpl.partNumber + '</div>' +
+      '<div class="muted jc-sub">' + customerName + ' &middot; P/N ' + tmpl.partNumber + '</div>' +
       '<div class="jc-row"><span class="jc-price">' + fmtMoney(tmpl.basePayment) + '</span>' +
         '<span class="jc-deadline">Qty ' + tmpl.qty + '</span></div>' +
       '<div class="jc-row jc-meta">' + materialChipHtml(tmpl.materialKey) + difficultyDotsHtml(tmpl.difficulty) + '</div>' +
@@ -1467,11 +1486,16 @@ function mfgStageStatusLabel(stageKey){
 
 function openMfgModal(key){
   openMfgTmplKey = key;
-  if(!state.mfgPrep[key] && !(state.mfgActive && state.mfgActive.tmplKey === key)) mfgStartPrep(key);
+  var isNewPrep = !state.mfgPrep[key] && !(state.mfgActive && state.mfgActive.tmplKey === key);
+  if(isNewPrep) mfgStartPrep(key);
   mfgActiveTab = MFG_TABS[MFG_STAGE_TAB_INDEX[mfgCurrentStageKey(key)] || 0].key;
   mfgPartView = 'blueprint';
   openModal('<div id="mfg-modal-body"></div>', 'mfg-modal setup-modal');
   renderMfgModalContent();
+  // A freshly-created prep (e.g. a new randomized Name Plate order) changes
+  // the outer blueprint-jobs card's customer line and status pill, which
+  // otherwise only refresh on the next full render() -- so trigger one now.
+  if(isNewPrep) render();
 }
 
 var mfgModalRenderSig = '';
@@ -1549,7 +1573,10 @@ function mfgTabBodyHtml(tmpl, key, stageKey){
 function mfgBlueprintTabHtml(tmpl, key){
   var prep = state.mfgPrep[key];
   var canAdvance = prep && prep.stage === 'blueprint';
-  return '<div class="row" role="group" aria-label="Part view">' +
+  var onMachine = state.mfgActive && state.mfgActive.tmplKey === key;
+  var customerName = (onMachine && state.mfgActive.customerName) || (prep && prep.customerName) || tmpl.customer;
+  return '<p class="muted" style="margin:0 0 .6em;">' + customerName + ' &middot; P/N ' + tmpl.partNumber + '</p>' +
+    '<div class="row" role="group" aria-label="Part view">' +
       '<button type="button" data-action="mfg-partview" data-view="blueprint" aria-pressed="' + (mfgPartView==='blueprint') + '">Blueprint</button>' +
       '<button type="button" data-action="mfg-partview" data-view="finished" aria-pressed="' + (mfgPartView==='finished') + '">Finished Part</button>' +
       '<button type="button" data-action="mfg-partview" data-view="stock" aria-pressed="' + (mfgPartView==='stock') + '">Raw Stock</button>' +
