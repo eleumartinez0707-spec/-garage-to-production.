@@ -191,18 +191,22 @@ body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behav
    so the workpiece reads as clamped and still while only the tool travels. */
 .machine-anim .mf-tool-layer{ clip-path:inset(0 0 37% 0); }
 .machine-anim .mf-base-layer{ clip-path:inset(63% 0 0 0); }
-.machine-anim.running.wet .mf-coolant.mf-tool-layer{ animation:toolheadSweep 3.2s ease-in-out infinite; }
-.machine-anim.running.dry .mf-dry.mf-tool-layer{ animation:toolheadSweep 3.2s ease-in-out infinite; }
-@keyframes toolheadSweep{
-  0%   { transform:translate(-50%,-50%) translate(-7px,-4px); }
-  12%  { transform:translate(-50%,-50%) translate(7px,-4px); }
-  25%  { transform:translate(-50%,-50%) translate(7px,-1px); }
-  37%  { transform:translate(-50%,-50%) translate(-7px,-1px); }
-  50%  { transform:translate(-50%,-50%) translate(-7px,1px); }
-  62%  { transform:translate(-50%,-50%) translate(7px,1px); }
-  75%  { transform:translate(-50%,-50%) translate(7px,4px); }
-  87%  { transform:translate(-50%,-50%) translate(-7px,4px); }
-  100% { transform:translate(-50%,-50%) translate(-7px,-4px); }
+.machine-anim.running.wet .mf-coolant.mf-tool-layer{ animation:toolheadCycle 1.1s steps(1, end) infinite; }
+.machine-anim.running.dry .mf-dry.mf-tool-layer{ animation:toolheadCycle 1.1s steps(1, end) infinite; }
+/* A real plunge/cut/retract choreography (idle high -> move down -> enter
+   material -> cutting depth -> XY interpolate -> small retract -> move up ->
+   return idle) instead of a generic wander, stepped rather than eased so it
+   reads as discrete tool positions like a low-FPS sprite loop. */
+@keyframes toolheadCycle{
+  0%    { transform:translate(-50%,-50%) translate(0px,-5px); }
+  12%   { transform:translate(-50%,-50%) translate(-3px,-2px); }
+  25%   { transform:translate(-50%,-50%) translate(-6px,1px); }
+  37%   { transform:translate(-50%,-50%) translate(-6px,3px); }
+  50%   { transform:translate(-50%,-50%) translate(6px,3px); }
+  63%   { transform:translate(-50%,-50%) translate(6px,1px); }
+  75%   { transform:translate(-50%,-50%) translate(3px,-2px); }
+  88%   { transform:translate(-50%,-50%) translate(0px,-4px); }
+  100%  { transform:translate(-50%,-50%) translate(0px,-5px); }
 }
 @media (prefers-reduced-motion: reduce){
   .machine-anim .mf-coolant, .machine-anim .mf-dry{ animation:none !important; }
