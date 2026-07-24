@@ -1050,6 +1050,36 @@ function mfgAdvancePrepStage(tmplKey, stage){
   scheduleAutosave();
   return true;
 }
+/* Send a not-yet-machined job back to the Process Plan tab so stock,
+   workholding, tool, and strategy choices can be revised. Only valid before
+   the program is generated -- once a program exists it's discarded, since
+   it was computed for the old plan. */
+function mfgEditPlan(tmplKey){
+  var prep = state.mfgPrep[tmplKey];
+  if(!prep || (prep.stage !== 'programming' && prep.stage !== 'readyForSetup')) return false;
+  prep.stage = 'plan';
+  prep.programTimeRemaining = 0;
+  prep.programTotalSeconds = 0;
+  scheduleAutosave();
+  return true;
+}
+/* Pull a job back off the machine before it's actually cut anything (stage
+   'setup' only -- no first article or production data exists yet to lose),
+   rebuilding a prep entry so its plan can be revised. */
+function mfgUnloadFromSetup(tmplKey){
+  var ap = state.mfgActive;
+  if(!ap || ap.tmplKey !== tmplKey || ap.stage !== 'setup') return false;
+  state.mfgPrep[tmplKey] = {
+    instanceId: uid(), tmplKey: tmplKey, stage: 'plan',
+    plan: ap.plan, program: ap.program,
+    programTimeRemaining: 0, programTotalSeconds: 0,
+    scores: ap.scores,
+    customerName: ap.customerName
+  };
+  state.mfgActive = null;
+  scheduleAutosave();
+  return true;
+}
 function mfgBeginProgramming(tmplKey){
   var prep = state.mfgPrep[tmplKey];
   if(!prep || prep.stage !== 'plan') return false;
@@ -2242,7 +2272,8 @@ function mfgProgrammingTabHtml(tmpl, key){
   } else if(ready){
     actionHtml = '<p class="pill good">Program ready.</p>' +
       '<button type="button" class="primary" style="width:100%; margin-top:.4em;" data-action="mfg-setup-machine" data-key="' + key + '" ' + (mfgMachineBusy()?'disabled':'') + '>' +
-      (mfgMachineBusy() ? 'Machine Busy &mdash; Wait' : 'Load on Machine') + '</button>';
+      (mfgMachineBusy() ? 'Machine Busy &mdash; Wait' : 'Load on Machine') + '</button>' +
+      '<button type="button" style="width:100%; margin-top:.4em;" data-action="mfg-edit-plan" data-key="' + key + '">&larr; Edit Plan (stock, workholding, tool)</button>';
   }
 
   return setupsHtml + cycleHtml + actionHtml;
@@ -2261,7 +2292,8 @@ function mfgSetupTabHtml(tmpl, key){
     '</div>' +
     '<p>Stock: ' + mfgStockOption(tmpl, ap.plan.stockId).label + '</p>' +
     '<ul>' + setupsHtml + '</ul>' +
-    '<button type="button" class="primary" style="width:100%;" data-action="mfg-run-first-article" data-key="' + key + '">Load Material &amp; Run First Article</button>';
+    '<button type="button" class="primary" style="width:100%;" data-action="mfg-run-first-article" data-key="' + key + '">Load Material &amp; Run First Article</button>' +
+    '<button type="button" style="width:100%; margin-top:.4em;" data-action="mfg-unload-setup" data-key="' + key + '">&larr; Unload &amp; Edit Plan</button>';
 }
 
 /* ---- First Article tab ---- */
@@ -4504,6 +4536,28 @@ document.addEventListener('click', function(e){
           toast('Loaded on the machine.', 'good');
         } else {
           toast('Machine is busy.', 'bad');
+        }
+      });
+      break;
+    case 'mfg-edit-plan':
+      withLock(function(){
+        var epKey = el.getAttribute('data-key');
+        if(mfgEditPlan(epKey)){
+          mfgActiveTab = 'plan';
+          renderMfgModalContent();
+          renderBlueprintJobs();
+          toast('Plan reopened for editing.', 'good');
+        }
+      });
+      break;
+    case 'mfg-unload-setup':
+      withLock(function(){
+        var usKey = el.getAttribute('data-key');
+        if(mfgUnloadFromSetup(usKey)){
+          mfgActiveTab = 'plan';
+          renderMfgModalContent();
+          renderBlueprintJobs();
+          toast('Unloaded from the machine. Plan reopened for editing.', 'good');
         }
       });
       break;
