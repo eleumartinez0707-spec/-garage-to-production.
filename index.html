@@ -589,7 +589,7 @@ var MFG_JOBS = {
       { id:'dHolePos', label:'Corner hole position', nominal:10, tol:0.12, unit:'mm' },
       { id:'dEngDepth', label:'Engrave depth', nominal:0.4, tol:0.08, unit:'mm' }
     ],
-    baseProgramMinutes:2,
+    baseProgramMinutes:0.5,
     toolKey:'em14'
   },
 
@@ -632,7 +632,7 @@ var MFG_JOBS = {
       { id:'dHoleDia', label:'Hanging hole diameter', nominal:13, tol:0.08, unit:'mm' },
       { id:'dProfile', label:'Aperture to hole center', nominal:58, tol:0.15, unit:'mm' }
     ],
-    baseProgramMinutes:3,
+    baseProgramMinutes:1,
     toolKey:'em14'
   },
 
@@ -673,7 +673,7 @@ var MFG_JOBS = {
       { id:'dLegW', label:'Leg width', nominal:25, tol:0.12, unit:'mm' },
       { id:'dHolePos', label:'Hole A position from end', nominal:12, tol:0.10, unit:'mm' }
     ],
-    baseProgramMinutes:4,
+    baseProgramMinutes:1.5,
     toolKey:'em14'
   }
 };
@@ -871,6 +871,12 @@ function mfgSheetSpriteFor(tmpl, viewMode, completed){
   return stages[clamp(idx,0,stages.length-1)];
 }
 
+function mfgEscapeXml(str){
+  return String(str).replace(/[&<>"']/g, function(c){
+    return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&apos;' }[c];
+  });
+}
+
 /* ---- Part / stock layered visual: finished, stock, or mid-operation state ---- */
 var mfgPartVisualSeq = 0;
 function buildPartVisualSVG(tmpl, viewMode, ctx){
@@ -887,6 +893,13 @@ function buildPartVisualSVG(tmpl, viewMode, ctx){
     var s = '<svg viewBox="0 0 200 150" font-family="Courier New,monospace">';
     s += '<rect x="0" y="0" width="200" height="150" fill="#141310"/>';
     s += '<image href="'+SHEET[sheetKey]+'" x="16" y="12" width="168" height="112" preserveAspectRatio="xMidYMid meet"/>';
+    // The nameplate sprite's engraving is a static "TEXT" placeholder --
+    // paint over it and engrave the job's actual random customer name so
+    // the plate reflects who it's actually being made for.
+    if(sheetKey === 'nameDone' && ctx.customerName){
+      s += '<rect x="57" y="49" width="86" height="33" fill="#a4a7af"/>';
+      s += '<text x="100" y="70" text-anchor="middle" fill="#20242c" font-size="14" font-weight="bold" letter-spacing="0.5" textLength="80" lengthAdjust="spacingAndGlyphs">' + mfgEscapeXml(ctx.customerName.toUpperCase()) + '</text>';
+    }
     s += '<text x="10" y="146" fill="#8a929e" font-size="7" letter-spacing="1">'+lbl+'</text>';
     s += '</svg>';
     return s;
@@ -994,11 +1007,11 @@ function mfgProgramSeconds(tmpl, plan){
   var featureCount = tmpl.features.length;
   var setupCount = (plan.setups || []).length || tmpl.setupsRequired;
   var base = tmpl.baseProgramMinutes * 60;
-  base += featureCount * 5;
-  base += (setupCount - 1) * 25;
+  base += featureCount * 3;
+  base += (setupCount - 1) * 15;
   var camMult = state.upgrades.camSoftware ? 0.6 : 1.0;
   var repeatMult = (state.mfgStats && state.mfgStats[tmpl.id]) ? 0.55 : 1.0;
-  return Math.max(20, Math.round(base * camMult * repeatMult));
+  return Math.max(15, Math.round(base * camMult * repeatMult));
 }
 
 /* Placeholder pool for the Name Plate's random Etsy-style customer name --
@@ -1627,7 +1640,7 @@ function mfgBlueprintTabHtml(tmpl, key){
       '<button type="button" data-action="mfg-partview" data-view="stock" aria-pressed="' + (mfgPartView==='stock') + '">Raw Stock</button>' +
     '</div>' +
     '<div class="mill-mini" style="max-width:280px; margin:.6em auto; background:#0a2440;" aria-hidden="true">' +
-      (mfgPartView==='blueprint' ? buildBlueprintSVG(tmpl) : buildPartVisualSVG(tmpl, mfgPartView, { stockId: (prep? prep.plan.stockId : tmpl.recommendedStockId) })) +
+      (mfgPartView==='blueprint' ? buildBlueprintSVG(tmpl) : buildPartVisualSVG(tmpl, mfgPartView, { stockId: (prep? prep.plan.stockId : tmpl.recommendedStockId), customerName: customerName })) +
     '</div>' +
     '<div class="stat-grid">' +
       statBox('Material', MATERIALS[tmpl.materialKey].label) +
