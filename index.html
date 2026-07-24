@@ -646,9 +646,6 @@ var WORKHOLDING = {
   tabs:         { key:'tabs',         label:'Machined Tabs',           rigidity:0.95, marksRisk:0.00, unlockedBy:null }
 };
 
-Exit code: 0
-Wall time: 0.8 seconds
-Output:
 var OP_STEP_LABELS = {
   face:'Face', roughContour:'Rough Contour', finishContour:'Finish Contour',
   roughPocket:'Rough Pocket', finishPocket:'Finish Pocket', spotDrill:'Spot Drill',
@@ -772,9 +769,6 @@ var MFG_JOBS = {
     toolKey:'em14'
   },
 
-Exit code: 0
-Wall time: 0.7 seconds
-Output:
   lBracket: {
     id:'mfg_lBracket', partNumber:'LB-301', part:'L Bracket',
     customer:'Summit Fabrication', materialKey:'aluminum', qty:6, dueSec:1500,
@@ -1894,9 +1888,6 @@ function mfgBlueprintTabHtml(tmpl, key){
    it works uniformly for mouse, touch, and pen.
    ============================================================ */
 
-Exit code: 0
-Wall time: 0.7 seconds
-Output:
 function mfgStockMargins(tmpl, stockOpt){
   var f = tmpl.finished;
   var topPlane = tmpl.id === 'mfg_lBracket' && tmpl.planOutline;
@@ -1975,9 +1966,6 @@ function mfgStockPlacementFeedback(scores, tmpl){
 
 var mfgStockPlacementDrag = null; /* live drag session state, not persisted */
 
-Exit code: 0
-Wall time: 0.7 seconds
-Output:
 function mfgStockPlacementHtml(tmpl, key, editable){
   var prep = state.mfgPrep[key];
   var plan = prep ? prep.plan : (state.mfgActive ? state.mfgActive.plan : mfgComputeDefaultPlan(tmpl));
@@ -2298,9 +2286,6 @@ function mfgLBracketFullOutline(tmpl){
   pts.push(pts[0]);
   return pts;
 }
-Exit code: 0
-Wall time: 0.7 seconds
-Output:
 var MFG_TRACE_CONTOURS = {
   lBracket: [
     { id:'contour', label:'the 0.145 in outer contour while preserving four tabs', plane:'top',
@@ -2365,9 +2350,6 @@ function mfgProjectToPolyline(p, pts){
   return best;
 }
 
-Exit code: 0
-Wall time: 0.8 seconds
-Output:
 function mfgTraceContourHtml(tmpl, key, contourDef, plan, editable){
   var stockOpt = mfgStockOption(tmpl, plan.stockId);
   var geo = mfgTraceGeometry(stockOpt, contourDef.plane);
@@ -2560,9 +2542,6 @@ function mfgWireContourTrace(){
   });
 }
 
-Exit code: 0
-Wall time: 0.8 seconds
-Output:
 function mfgLBracketSequenceHtml(tmpl){
   return '<div class="minigame">' +
     '<p class="minigame-instruction">Machinist sequence</p>' +
