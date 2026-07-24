@@ -646,11 +646,14 @@ var WORKHOLDING = {
   tabs:         { key:'tabs',         label:'Machined Tabs',           rigidity:0.95, marksRisk:0.00, unlockedBy:null }
 };
 
+Exit code: 0
+Wall time: 0.8 seconds
+Output:
 var OP_STEP_LABELS = {
   face:'Face', roughContour:'Rough Contour', finishContour:'Finish Contour',
   roughPocket:'Rough Pocket', finishPocket:'Finish Pocket', spotDrill:'Spot Drill',
   drill:'Drill', bore:'Bore', ream:'Ream', tap:'Tap', chamfer:'Chamfer', deburr:'Deburr',
-  engrave:'Engrave'
+  engrave:'Engrave', tabCleanup:'Break & Sand Tabs'
 };
 
 /* Which op steps a feature type typically needs, in order. */
@@ -663,7 +666,8 @@ var FEATURE_DEFAULT_STEPS = {
   tappedHole: ['drill','tap'],
   chamfer: ['chamfer'],
   deburr: ['deburr'],
-  engrave: ['engrave']
+  engrave: ['engrave'],
+  tabCleanup: ['tabCleanup']
 };
 
 /* Base seconds per op-step at 1x, used for the cycle-time breakdown display
@@ -671,8 +675,10 @@ var FEATURE_DEFAULT_STEPS = {
    simple flow's machining model. */
 var OP_STEP_BASE_SECONDS = {
   face:10, roughContour:14, finishContour:10, roughPocket:16, finishPocket:11,
-  spotDrill:4, drill:6, bore:9, ream:7, tap:8, chamfer:5, deburr:4, engrave:9
+  spotDrill:4, drill:6, bore:9, ream:7, tap:8, chamfer:5, deburr:4, engrave:9,
+  tabCleanup:12
 };
+
 
 function mfgFeature(def){
   return Object.assign({ steps: FEATURE_DEFAULT_STEPS[def.type] || ['face'] }, def);
@@ -766,51 +772,56 @@ var MFG_JOBS = {
     toolKey:'em14'
   },
 
+Exit code: 0
+Wall time: 0.7 seconds
+Output:
   lBracket: {
     id:'mfg_lBracket', partNumber:'LB-301', part:'L Bracket',
     customer:'Summit Fabrication', materialKey:'aluminum', qty:6, dueSec:1500,
     basePayment:420, difficulty:3, minRep:0,
     stockOptions:[
-      { id:'snug', label:'90 x 55 x 55 mm (snug)', length:90, width:55, thickness:55, costMult:1.0 },
-      { id:'oversize', label:'100 x 60 x 60 mm (oversize)', length:100, width:60, thickness:60, costMult:1.3 }
+      { id:'snug', label:'90 x 55 x 6 mm plate (snug)', length:90, width:55, thickness:6, costMult:1.0 },
+      { id:'oversize', label:'100 x 60 x 8 mm plate (oversize)', length:100, width:60, thickness:8, costMult:1.3 }
     ],
     recommendedStockId:'snug',
     materialCostBase:14,
-    finished:{ length:80, width:50, thickness:50, legWidth:25, shelfHeight:20 },
-    // The blueprint's top view reads this outline directly (same L-shape as
-    // the front-view profile below it) instead of falling back to a plain
-    // bounding-box rectangle, which didn't read as an L-bracket at all.
+    finished:{ length:80, width:50, thickness:6 },
     planOutline:[[0,0],[80,0],[80,20],[25,20],[25,50],[0,50]],
-    setupsRequired:2,
+    contourWidthIn:0.145,
+    cutterDiameterIn:0.125,
+    contourClearanceIn:0.020,
+    holdingTabs:[
+      [[0,25],[0,33]],
+      [[25,33],[25,41]],
+      [[50,20],[59,20]],
+      [[59,0],[69,0]]
+    ],
+    setupsRequired:1,
     setupDefs:[
-      { n:1, label:'Setup 1 — Top Face (stock gripped from the bottom)', faceUp:'top',
-        recommendedWorkholding:['standardJaws','parallels'],
-        note:'The vise grips the lower portion of the stock. Only material above the jaws is reachable this setup.' },
-      { n:2, label:'Setup 2 — Flip & Finish (grip the finished top section)', faceUp:'bottom',
-        recommendedWorkholding:['clamps','softJaws','fixturePlate'], riskyWorkholding:['standardJaws'],
-        note:'You are now gripping the surface you just finished. Standard jaws can mark it -- soft jaws or a fixture plate protect the finish.' }
+      { n:1, label:'Setup 1 — Drill Holes, Tabbed Contour & Cleanup', faceUp:'top',
+        recommendedWorkholding:['tabs'],
+        note:'Drill every hole while the plate is fully supported. Then cut the 0.145 in outer contour with a 1/8 in end mill, leaving four tabs. Break the tabs off and sand them flush after unloading.' }
     ],
     features:[
-      mfgFeature({ id:'f1', type:'face', face:'top', setupMin:1, label:'Top face' }),
-      mfgFeature({ id:'c1', type:'contour', face:'top', setupMin:1, label:'L-step relief (upper contour)' }),
-      mfgFeature({ id:'h1', type:'hole', face:'top', setupMin:1, x:12, y:15, diameter:8, through:true, label:'Leg mounting hole A' }),
-      mfgFeature({ id:'h2', type:'hole', face:'top', setupMin:1, x:12, y:35, diameter:8, through:true, label:'Leg mounting hole B' }),
-      mfgFeature({ id:'ch1', type:'chamfer', face:'top', setupMin:1, size:1, label:'Top edge break' }),
-      mfgFeature({ id:'f2', type:'face', face:'bottom', setupMin:2, label:'Bottom face -- removes remaining stock held by the vise in Setup 1' }),
-      mfgFeature({ id:'h3', type:'hole', face:'bottom', setupMin:2, x:55, y:15, diameter:6, through:true, label:'Shelf mounting hole C' }),
-      mfgFeature({ id:'h4', type:'hole', face:'bottom', setupMin:2, x:55, y:35, diameter:6, through:true, label:'Shelf mounting hole D' }),
-      mfgFeature({ id:'ch2', type:'chamfer', face:'bottom', setupMin:2, size:1, label:'Bottom edge break' })
+      mfgFeature({ id:'h1', type:'hole', face:'top', setupMin:1, x:12, y:38, diameter:8, through:true, label:'Drill leg hole A first' }),
+      mfgFeature({ id:'h2', type:'hole', face:'top', setupMin:1, x:12, y:12, diameter:8, through:true, label:'Drill leg hole B first' }),
+      mfgFeature({ id:'h3', type:'hole', face:'top', setupMin:1, x:48, y:10, diameter:6, through:true, label:'Drill shelf hole C first' }),
+      mfgFeature({ id:'h4', type:'hole', face:'top', setupMin:1, x:68, y:10, diameter:6, through:true, label:'Drill shelf hole D first' }),
+      mfgFeature({ id:'c1', type:'contour', face:'top', setupMin:1, label:'Cut 0.145 in outer contour, leaving four tabs' }),
+      mfgFeature({ id:'t1', type:'tabCleanup', face:'top', setupMin:1, label:'Break off and sand four holding tabs flush' })
     ],
     inspectionDims:[
-      { id:'dHeight', label:'Overall height (tall leg)', nominal:50, tol:0.15, unit:'mm' },
-      { id:'dShelf', label:'Shelf height', nominal:20, tol:0.12, unit:'mm' },
-      { id:'dLegW', label:'Leg width', nominal:25, tol:0.12, unit:'mm' },
-      { id:'dHolePos', label:'Hole A position from end', nominal:12, tol:0.10, unit:'mm' }
+      { id:'dHeight', label:'Overall L height', nominal:50, tol:0.15, unit:'mm' },
+      { id:'dShelf', label:'Shelf width', nominal:20, tol:0.12, unit:'mm' },
+      { id:'dThk', label:'Plate thickness', nominal:6, tol:0.10, unit:'mm' },
+      { id:'dHolePos', label:'Hole A position from edge', nominal:12, tol:0.10, unit:'mm' },
+      { id:'dTabs', label:'Tabs sanded flush', nominal:0, tol:0.10, unit:'mm' }
     ],
     baseProgramMinutes:1.5,
-    toolKey:'em14'
+    toolKey:'em18'
   }
 };
+
 
 /* ---- Manufacturing rule engine: warnings for a player-built plan ---- */
 function evaluateMfgPlan(tmpl, plan){
@@ -1883,11 +1894,15 @@ function mfgBlueprintTabHtml(tmpl, key){
    it works uniformly for mouse, touch, and pen.
    ============================================================ */
 
+Exit code: 0
+Wall time: 0.7 seconds
+Output:
 function mfgStockMargins(tmpl, stockOpt){
   var f = tmpl.finished;
+  var topPlane = tmpl.id === 'mfg_lBracket' && tmpl.planOutline;
   return {
     marginXmax: Math.max(0.001, stockOpt.length - f.length),
-    marginYmax: Math.max(0.001, stockOpt.thickness - f.thickness)
+    marginYmax: Math.max(0.001, (topPlane ? stockOpt.width - f.width : stockOpt.thickness - f.thickness))
   };
 }
 
@@ -1924,8 +1939,9 @@ function mfgScoreStockPlacement(tmpl, stockOpt, dx, dy){
   var gripFraction = clamp(dy / m.marginYmax, 0, 1);
   var centerFraction = clamp(dx / m.marginXmax, 0, 1);
   var availableGrip = mfgTrapezoidScore(gripFraction, 0.12, 0.35, 0.75, 0.95);
-  var finishedArea = polygonArea(mfgFinishedProfile(tmpl));
-  var stockArea = stockOpt.length * stockOpt.thickness;
+  var topPlane = tmpl.id === 'mfg_lBracket' && tmpl.planOutline;
+  var finishedArea = polygonArea(topPlane ? tmpl.planOutline : mfgFinishedProfile(tmpl));
+  var stockArea = stockOpt.length * (topPlane ? stockOpt.width : stockOpt.thickness);
   var materialEfficiency = clamp(finishedArea / stockArea, 0, 1);
   var centeredness = 1 - Math.abs(centerFraction - 0.5)*2;
   var stockPlacementScore = clamp(0.55*availableGrip + 0.3*materialEfficiency + 0.15*centeredness, 0, 1);
@@ -1938,8 +1954,16 @@ function mfgScoreStockPlacement(tmpl, stockOpt, dx, dy){
   };
 }
 
-function mfgStockPlacementFeedback(scores){
+function mfgStockPlacementFeedback(scores, tmpl){
   var lines = [];
+  if(tmpl && tmpl.id === 'mfg_lBracket'){
+    lines.push(scores.availableGrip >= 0.75 ? { cls:'good', text:'Good support around the outside for four holding tabs.' } :
+      scores.availableGrip >= 0.45 ? { cls:'warn', text:'The tabs can work, but there is little surrounding stock for support.' } :
+      { cls:'bad', text:'Move the bracket inward so all four tabs connect to solid stock.' });
+    lines.push(scores.materialEfficiency >= 0.55 ? { cls:'good', text:'Efficient plate layout.' } :
+      { cls:'warn', text:'A fair amount of plate will remain around the contour.' });
+    return lines;
+  }
   lines.push(scores.availableGrip >= 0.75 ? { cls:'good', text:'Solid grip material for the Setup 1 vise.' } :
     scores.availableGrip >= 0.45 ? { cls:'warn', text:'Workable grip, but not much margin for error.' } :
     { cls:'bad', text:'Too little material left for the vise to grip firmly.' });
@@ -1948,8 +1972,12 @@ function mfgStockPlacementFeedback(scores){
   return lines;
 }
 
+
 var mfgStockPlacementDrag = null; /* live drag session state, not persisted */
 
+Exit code: 0
+Wall time: 0.7 seconds
+Output:
 function mfgStockPlacementHtml(tmpl, key, editable){
   var prep = state.mfgPrep[key];
   var plan = prep ? prep.plan : (state.mfgActive ? state.mfgActive.plan : mfgComputeDefaultPlan(tmpl));
@@ -1964,13 +1992,16 @@ function mfgStockPlacementHtml(tmpl, key, editable){
   }).join('') + '</div>';
 
   var playW = 280, playH = 190, pad = 18;
-  var scale = fitScale(stockOpt.length, stockOpt.thickness, playW-2*pad, playH-2*pad);
-  var boxW = stockOpt.length*scale, boxH = stockOpt.thickness*scale;
+  var topPlane = tmpl.id === 'mfg_lBracket' && tmpl.planOutline;
+  var stockHeight = topPlane ? stockOpt.width : stockOpt.thickness;
+  var scale = fitScale(stockOpt.length, stockHeight, playW-2*pad, playH-2*pad);
+  var boxW = stockOpt.length*scale, boxH = stockHeight*scale;
   var ox = (playW-boxW)/2, oy = (playH-boxH)/2;
   var pal = materialBlockPalette(tmpl.materialKey);
 
-  var stockPath = polyPath(mfgStockProfile(tmpl, stockOpt.id), scale, scale, ox, oy, true, boxH);
-  var finishedPts = mfgFinishedProfile(tmpl);
+  var stockPts = topPlane ? [[0,0],[stockOpt.length,0],[stockOpt.length,stockOpt.width],[0,stockOpt.width]] : mfgStockProfile(tmpl, stockOpt.id);
+  var stockPath = polyPath(stockPts, scale, scale, ox, oy, true, boxH);
+  var finishedPts = topPlane ? tmpl.planOutline : mfgFinishedProfile(tmpl);
   var finishedPathBase = polyPath(finishedPts, scale, scale, ox, oy, true, boxH);
 
   var tx = placement.dx*scale, ty = -placement.dy*scale;
@@ -1982,7 +2013,24 @@ function mfgStockPlacementHtml(tmpl, key, editable){
     ghostHtml = '<path d="' + finishedPathBase + '" fill="none" stroke="var(--accent2)" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.55" transform="translate(' + rtx.toFixed(1) + ',' + rty.toFixed(1) + ')"/>';
   }
 
-  var hitX = ox, hitY = oy+boxH-tmpl.finished.thickness*scale, hitW = tmpl.finished.length*scale, hitH = tmpl.finished.thickness*scale;
+  var fx = finishedPts.map(function(p){ return p[0]; }), fy = finishedPts.map(function(p){ return p[1]; });
+  var fMinX = Math.min.apply(null, fx), fMaxX = Math.max.apply(null, fx);
+  var fMinY = Math.min.apply(null, fy), fMaxY = Math.max.apply(null, fy);
+  var hitX = ox+fMinX*scale, hitY = oy+boxH-fMaxY*scale;
+  var hitW = (fMaxX-fMinX)*scale, hitH = (fMaxY-fMinY)*scale;
+  var processOverlayHtml = '';
+  if(topPlane){
+    var kerfPx = Math.max(5, (tmpl.contourWidthIn || 0.145)*25.4*scale);
+    processOverlayHtml += '<path d="' + finishedPathBase + '" fill="none" stroke="#111820" stroke-width="' + kerfPx.toFixed(1) + '" stroke-linejoin="round" opacity="0.9" style="pointer-events:none;"/>';
+    tmpl.features.filter(function(f){ return f.type === 'hole'; }).forEach(function(f){
+      var hx = ox+f.x*scale, hy = oy+boxH-f.y*scale;
+      processOverlayHtml += '<circle cx="'+hx.toFixed(1)+'" cy="'+hy.toFixed(1)+'" r="'+Math.max(3,f.diameter*scale/2).toFixed(1)+'" fill="#111820" stroke="#dfe6ed" stroke-width="1" style="pointer-events:none;"/>';
+    });
+    (tmpl.holdingTabs || []).forEach(function(tab){
+      var a=tab[0], b=tab[1];
+      processOverlayHtml += '<line x1="'+(ox+a[0]*scale).toFixed(1)+'" y1="'+(oy+boxH-a[1]*scale).toFixed(1)+'" x2="'+(ox+b[0]*scale).toFixed(1)+'" y2="'+(oy+boxH-b[1]*scale).toFixed(1)+'" stroke="#ff4545" stroke-width="'+Math.max(6,kerfPx+2).toFixed(1)+'" stroke-linecap="square" style="pointer-events:none;"/>';
+    });
+  }
 
   var svg = '<svg viewBox="0 0 ' + playW + ' ' + playH + '" class="minigame-stage" id="stockPlacementSvg" data-scale="' + scale + '" data-ox="' + ox + '" data-oy="' + oy + '" data-boxh="' + boxH + '" data-mx="' + m.marginXmax + '" data-my="' + m.marginYmax + '" data-clean="' + clean + '" shape-rendering="crispEdges">' +
     '<path d="' + stockPath + '" fill="#2a2f38" stroke="#4a5468" stroke-width="1.5"/>' +
@@ -1990,19 +2038,20 @@ function mfgStockPlacementHtml(tmpl, key, editable){
     '<g id="stockPlacementDragGroup" class="minigame-drag-target" transform="translate(' + tx.toFixed(1) + ',' + ty.toFixed(1) + ')" touch-action="none">' +
       '<rect x="' + hitX.toFixed(1) + '" y="' + hitY.toFixed(1) + '" width="' + hitW.toFixed(1) + '" height="' + hitH.toFixed(1) + '" fill="transparent"/>' +
       '<path d="' + finishedPathBase + '" fill="' + pal.front + '" stroke="' + pal.side + '" stroke-width="2" style="pointer-events:none;"/>' +
+      processOverlayHtml +
     '</g>' +
     '<text x="6" y="' + (playH-6) + '" fill="#8a929e" font-size="8" font-family="Courier New,monospace">DRAG THE PART INTO POSITION</text>' +
   '</svg>';
 
   var hintHtml = clean ? '<div class="minigame-hint-box" id="stockPlacementHint">Leave a bit more than half the extra stock below the part &mdash; that\'s what the vise grips in Setup 1. Too little and the part can shift or come loose.</div>' : '';
 
-  var feedback = mfgStockPlacementFeedback(scores);
+  var feedback = mfgStockPlacementFeedback(scores, tmpl);
   var resultHtml = '<div class="minigame-result" id="stockPlacementResult">' + feedback.map(function(f){
     return '<span class="pill ' + f.cls + '">' + f.text + '</span>';
   }).join('') + '</div>';
 
   return '<div class="minigame">' +
-    '<p class="minigame-instruction">Place the part inside the stock.</p>' +
+    '<p class="minigame-instruction">' + (topPlane ? 'Place the bracket with solid stock around all four holding tabs.' : 'Place the part inside the stock.') + '</p>' +
     stockChoiceHtml +
     svg +
     '<div class="minigame-controls">' +
@@ -2013,6 +2062,7 @@ function mfgStockPlacementHtml(tmpl, key, editable){
     resultHtml +
   '</div>';
 }
+
 
 var mfgStockHintOpen = false;
 
@@ -2248,9 +2298,13 @@ function mfgLBracketFullOutline(tmpl){
   pts.push(pts[0]);
   return pts;
 }
+Exit code: 0
+Wall time: 0.7 seconds
+Output:
 var MFG_TRACE_CONTOURS = {
   lBracket: [
-    { id:'contour', label:'the full bracket outline', plane:'front', points: function(tmpl){ return mfgLBracketFullOutline(tmpl); } }
+    { id:'contour', label:'the 0.145 in outer contour while preserving four tabs', plane:'top',
+      points: function(tmpl){ return tmpl.planOutline.concat([tmpl.planOutline[0]]); } }
   ],
   bottleOpener: [
     { id:'contour', label:'the outer profile', plane:'top', points: function(tmpl){ return tmpl.planOutline.concat([tmpl.planOutline[0]]); } }
@@ -2266,6 +2320,7 @@ var MFG_TRACE_CONTOURS = {
     } }
   ]
 };
+
 
 function mfgTraceGeometry(stockOpt, plane){
   var playW=280, playH=190, pad=18;
@@ -2310,6 +2365,9 @@ function mfgProjectToPolyline(p, pts){
   return best;
 }
 
+Exit code: 0
+Wall time: 0.8 seconds
+Output:
 function mfgTraceContourHtml(tmpl, key, contourDef, plan, editable){
   var stockOpt = mfgStockOption(tmpl, plan.stockId);
   var geo = mfgTraceGeometry(stockOpt, contourDef.plane);
@@ -2336,12 +2394,28 @@ function mfgTraceContourHtml(tmpl, key, contourDef, plan, editable){
     }
   }
 
+  var bracketProcessHtml = '', bracketTabsTopHtml = '';
+  if(key === 'lBracket'){
+    var contourPx = Math.max(5, (tmpl.contourWidthIn || 0.145)*25.4*geo.scale);
+    bracketProcessHtml += '<path d="' + finishedPath + '" fill="#aeb8c5" stroke="#111820" stroke-width="' + contourPx.toFixed(1) + '" stroke-linejoin="round"/>';
+    tmpl.features.filter(function(f){ return f.type === 'hole'; }).forEach(function(f){
+      var hp = mfgMmToPx([f.x,f.y], geo);
+      bracketProcessHtml += '<circle cx="'+hp[0].toFixed(1)+'" cy="'+hp[1].toFixed(1)+'" r="'+Math.max(3,f.diameter*geo.scale/2).toFixed(1)+'" fill="#111820" stroke="#dfe6ed" stroke-width="1"/>';
+    });
+    (tmpl.holdingTabs || []).forEach(function(tab){
+      var ta=mfgMmToPx(tab[0],geo), tb=mfgMmToPx(tab[1],geo);
+      bracketTabsTopHtml += '<line x1="'+ta[0].toFixed(1)+'" y1="'+ta[1].toFixed(1)+'" x2="'+tb[0].toFixed(1)+'" y2="'+tb[1].toFixed(1)+'" stroke="#ff4545" stroke-width="'+Math.max(6,contourPx+2).toFixed(1)+'" stroke-linecap="square"/>';
+    });
+  }
+
   var svg = '<svg viewBox="0 0 ' + geo.playW + ' ' + geo.playH + '" class="minigame-stage trace-stage" id="traceSvg-' + contourDef.id + '" data-contour="' + contourDef.id + '" data-clean="' + clean + '" shape-rendering="crispEdges">' +
     '<path d="' + stockPath + '" fill="#20242c" stroke="#4a5468" stroke-width="1"/>' +
     '<path d="' + finishedPath + '" fill="none" stroke="#5a6474" stroke-width="1" opacity="0.6"/>' +
+    bracketProcessHtml +
     '<path d="' + guideD + '" fill="none" stroke="var(--accent2)" stroke-width="' + (clean?7:4) + '" stroke-linecap="round" stroke-linejoin="round" opacity="' + (clean?0.35:0.25) + '"/>' +
     '<path d="' + guideD + '" fill="none" stroke="#dff2ff" stroke-width="1.5" stroke-dasharray="5,4" stroke-linecap="round"/>' +
     arrowsHtml +
+    bracketTabsTopHtml +
     '<path d="" id="traceProgressPath-' + contourDef.id + '" class="traceProgressPath" fill="none" stroke="var(--good)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>' +
     '<circle cx="' + pxPts[0][0].toFixed(1) + '" cy="' + pxPts[0][1].toFixed(1) + '" r="5" fill="var(--good)"/>' +
     '<text x="' + (pxPts[0][0]+8).toFixed(1) + '" y="' + (pxPts[0][1]-6).toFixed(1) + '" fill="var(--good)" font-size="9">START</text>' +
@@ -2362,6 +2436,7 @@ function mfgTraceContourHtml(tmpl, key, contourDef, plan, editable){
     resultHtml +
   '</div>';
 }
+
 function mfgTraceTabHtml(tmpl, key, editable){
   var contours = MFG_TRACE_CONTOURS[key];
   if(!contours) return '';
@@ -2485,6 +2560,27 @@ function mfgWireContourTrace(){
   });
 }
 
+Exit code: 0
+Wall time: 0.8 seconds
+Output:
+function mfgLBracketSequenceHtml(tmpl){
+  return '<div class="minigame">' +
+    '<p class="minigame-instruction">Machinist sequence</p>' +
+    '<ol style="margin:.35em 0 .5em; padding-left:1.35em; line-height:1.55;">' +
+      '<li><b>Drill all four holes first</b> while the full plate supports the part.</li>' +
+      '<li><b>Cut the outer contour second</b> with the 1/8 in end mill.</li>' +
+      '<li><b>Leave four holding tabs</b> at the red locations so the bracket cannot move.</li>' +
+      '<li><b>Break and sand the tabs flush</b> after the plate is unloaded.</li>' +
+    '</ol>' +
+    '<div class="row" style="gap:.35em;">' +
+      '<span class="pill good">0.125 in cutter</span>' +
+      '<span class="pill">+ 0.020 in clearance</span>' +
+      '<span class="pill" style="border-color:#ff4545; color:#ff9b9b;">= 0.145 in contour</span>' +
+      '<span class="pill" style="border-color:#ff4545; color:#ff9b9b;">Red = holding tab</span>' +
+    '</div>' +
+  '</div>';
+}
+
 /* ---- Process Plan tab ---- */
 function mfgPlanTabHtml(tmpl, key){
   var prep = state.mfgPrep[key];
@@ -2497,8 +2593,9 @@ function mfgPlanTabHtml(tmpl, key){
     '<label for="mfg-stock">Starting stock</label><select id="mfg-stock" ' + (editable?'':'disabled') + ' data-action-change="mfg-set-stock">' +
       tmpl.stockOptions.map(function(s){ return '<option value="'+s.id+'"' + (plan.stockId===s.id?' selected':'') + '>' + s.label + '</option>'; }).join('') + '</select>';
 
-  var orientationHtml = key === 'lBracket' ? mfgOrientationHtml(tmpl, key, editable) : '';
-  var featureAssignHtml = key === 'lBracket' ? mfgFeatureAssignmentHtml(tmpl, key, editable) : '';
+  var sequenceHtml = key === 'lBracket' ? mfgLBracketSequenceHtml(tmpl) : '';
+  var orientationHtml = '';
+  var featureAssignHtml = '';
   var traceHtml = MFG_TRACE_CONTOURS[key] ? mfgTraceTabHtml(tmpl, key, editable) : '';
 
   var setupsHtml = tmpl.setupDefs.map(function(sd, idx){
@@ -2522,9 +2619,10 @@ function mfgPlanTabHtml(tmpl, key){
     return '<li style="' + (w.level==='bad'?'':'background:rgba(255,204,51,.12); border-color:var(--warn); color:#ffe9a8;') + '">' + w.text + '</li>';
   }).join('') + '</ul>' : '<p class="pill good">No plan warnings.</p>';
 
-  return stockHtml + orientationHtml + featureAssignHtml + traceHtml + setupsHtml + '<h4 class="section-title">Plan Warnings</h4>' + warnHtml +
+  return stockHtml + sequenceHtml + orientationHtml + featureAssignHtml + traceHtml + setupsHtml + '<h4 class="section-title">Plan Warnings</h4>' + warnHtml +
     (editable ? '<button type="button" class="primary" style="width:100%; margin-top:.8em;" data-action="mfg-advance" data-key="' + key + '" data-to="programming-start">Confirm Plan &mdash; Begin Programming</button>' : '');
 }
+
 
 /* ---- Programming tab ---- */
 function mfgProgrammingTabHtml(tmpl, key){
