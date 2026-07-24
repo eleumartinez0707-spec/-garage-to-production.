@@ -475,6 +475,7 @@ body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behav
         <div class="row">
           <button type="button" class="secondary" data-action="manual-save">Manual Save</button>
           <button type="button" data-action="replay-tutorial">Replay Tutorial</button>
+          <button type="button" class="secondary" data-action="return-start-screen">Save &amp; Return to Start Screen</button>
           <button type="button" class="danger" data-action="reset-game">Reset Game</button>
         </div>
         <p class="muted" id="save-status" style="margin-top:.5em;"></p>
@@ -695,7 +696,7 @@ var MFG_JOBS = {
     ],
     features:[
       mfgFeature({ id:'f1', type:'face', face:'top', setupMin:1, label:'Top face' }),
-      mfgFeature({ id:'b1', type:'contour', face:'top', setupMin:1, label:'Recessed border frame' }),
+      mfgFeature({ id:'b1', type:'contour', face:'top', setupMin:1, label:'Outer contour with holding tabs' }),
       mfgFeature({ id:'h1', type:'hole', face:'top', setupMin:1, x:10, y:10, diameter:4, through:true, label:'Corner hole A' }),
       mfgFeature({ id:'h2', type:'hole', face:'top', setupMin:1, x:110, y:10, diameter:4, through:true, label:'Corner hole B' }),
       mfgFeature({ id:'h3', type:'hole', face:'top', setupMin:1, x:10, y:50, diameter:4, through:true, label:'Corner hole C' }),
@@ -2881,36 +2882,71 @@ function mfgPlanTabHtml(tmpl, key){
 }
 
 /* ---- Programming tab ---- */
+function mfgOperationSummary(tmpl, customerName){
+  if(tmpl.id==='mfg_nameplate'){
+    return [
+      'Face the plate',
+      'Drill the four corner holes',
+      'Engrave “'+mfgEscapeXml(customerName||'CUSTOM NAME')+'”',
+      'Rough contour with tabs, then finish contour with tabs'
+    ];
+  }
+  if(tmpl.id==='mfg_bottleOpener'){
+    return [
+      'Face the plate',
+      'Machine the opener cutout',
+      'Drill the hanging hole',
+      'Rough and finish the outer contour',
+      'Deburr the finished edges'
+    ];
+  }
+  if(tmpl.id==='mfg_lBracket'){
+    return [
+      'Drill all four holes first',
+      'Rough the outer contour with five holding tabs',
+      'Finish the contour while leaving the tabs intact',
+      'Break and sand the five tabs flush'
+    ];
+  }
+  return tmpl.features.map(function(f){ return f.label; });
+}
+
 function mfgProgrammingTabHtml(tmpl, key){
   var prep = state.mfgPrep[key];
-  var program = prep ? prep.program : (mfgRuntimeJob(key) ? mfgRuntimeJob(key).program : mfgDefaultProgram(tmpl));
-  var plan = prep ? prep.plan : (mfgRuntimeJob(key) ? mfgRuntimeJob(key).plan : mfgComputeDefaultPlan(tmpl));
+  var runtimeJob=mfgRuntimeJob(key);
+  var program = prep ? prep.program : (runtimeJob ? runtimeJob.program : mfgDefaultProgram(tmpl));
+  var plan = prep ? prep.plan : (runtimeJob ? runtimeJob.plan : mfgComputeDefaultPlan(tmpl));
+  var assignedName=(runtimeJob&&runtimeJob.customerName)||(prep&&prep.customerName)||tmpl.customer;
+  var operationSummary=mfgOperationSummary(tmpl,assignedName);
   var editable = prep && prep.stage === 'plan';
   var isProgramming = prep && prep.stage === 'programming';
   var ready = prep && prep.stage === 'readyForSetup';
 
   var setupsHtml = tmpl.setupDefs.map(function(sd, idx){
     var s = program.setups[idx];
-    var featuresForSetup = tmpl.features.filter(function(f){ return f.setupMin === sd.n; });
-    var stepsHtml = featuresForSetup.map(function(f){
-      return '<li>' + f.label + ': ' + f.steps.map(function(sk){ return OP_STEP_LABELS[sk]; }).join(' → ') + '</li>';
-    }).join('');
+    var stepsHtml = operationSummary.map(function(label){ return '<li>'+label+'</li>'; }).join('');
     var toolOptions = ['em18','em14'].map(function(tk){ return '<option value="'+tk+'"' + (s.toolKey===tk?' selected':'') + '>' + TOOLS[tk].shortLabel + '</option>'; }).join('');
     var presetOptions = ['conservative','balanced','aggressive'].map(function(p){
       return '<option value="'+p+'"' + (s.preset===p?' selected':'') + '>' + p.charAt(0).toUpperCase()+p.slice(1) + '</option>';
     }).join('');
     return '<div class="card" style="margin-top:.5em;">' +
       '<h4 style="margin:0 0 .3em;">Setup ' + sd.n + ' Program</h4>' +
-      '<ol style="margin:.3em 0; padding-left:1.2em; font-size:.82rem; color:var(--text-dim);">' + stepsHtml + '</ol>' +
+      '<ol style="margin:.3em 0 .7em; padding-left:1.2em; line-height:1.55;">' + stepsHtml + '</ol>' +
       '<label>Tool</label><select ' + (editable?'':'disabled') + ' data-action-change="mfg-set-tool" data-setup-idx="'+idx+'">' + toolOptions + '</select>' +
       '<label>Strategy</label><select ' + (editable?'':'disabled') + ' data-action-change="mfg-set-preset" data-setup-idx="'+idx+'">' + presetOptions + '</select>' +
     '</div>';
   }).join('');
 
   var cycleInfo = mfgCycleBreakdown(tmpl, program);
-  var cycleHtml = '<h4 class="section-title">Cycle Time Breakdown</h4><table><tbody>' +
-    cycleInfo.rows.map(function(r){ return '<tr><td>' + r.label + '</td><td>' + fmtTime(r.seconds) + '</td></tr>'; }).join('') +
-    '<tr><td><b>Total</b></td><td><b>' + fmtTime(cycleInfo.total) + '</b></td></tr></tbody></table>';
+  var cycleHtml = '<div class="card" style="margin-top:.7em;">' +
+    '<div class="spread"><h4 style="margin:0;">Estimated Cycle</h4><span class="pill good">'+fmtTime(cycleInfo.total)+'</span></div>' +
+    '<details style="margin-top:.6em;"><summary class="muted" style="cursor:pointer;">Show detailed cycle timing</summary>' +
+      '<table style="margin-top:.5em;"><tbody>' +
+        cycleInfo.rows.map(function(r){ return '<tr><td>' + r.label + '</td><td>' + fmtTime(r.seconds) + '</td></tr>'; }).join('') +
+        '<tr><td><b>Total</b></td><td><b>' + fmtTime(cycleInfo.total) + '</b></td></tr>' +
+      '</tbody></table>' +
+    '</details>' +
+  '</div>';
 
   var actionHtml = '';
   if(editable){
@@ -2946,12 +2982,15 @@ function mfgClampSetupHtml(tmpl, key, ap){
   ];
   var order={};
   cs.sequence.forEach(function(idx,n){ order[idx]=n+1; });
+  var plateLabel=tmpl.id==='mfg_nameplate' ? (ap.customerName||'CUSTOM NAME') : tmpl.part;
+  var plateText=String(plateLabel).toUpperCase();
+  var plateFont=Math.max(7,Math.min(14,190/Math.max(10,plateText.length)/0.62));
   var svg='<svg viewBox="0 0 360 210" class="minigame-stage" shape-rendering="crispEdges" aria-label="Interactive four-clamp setup">' +
     '<defs><linearGradient id="clamp-stock" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7d8591"/><stop offset=".5" stop-color="#59616e"/><stop offset="1" stop-color="#3e4652"/></linearGradient></defs>' +
     '<rect width="360" height="210" fill="#10151b"/>' +
     '<rect x="70" y="43" width="220" height="124" rx="5" fill="url(#clamp-stock)" stroke="#aab3bf" stroke-width="3"/>' +
     '<rect x="88" y="60" width="184" height="90" rx="3" fill="#666f7c" stroke="#d7dde5" stroke-width="2" stroke-dasharray="7 5"/>' +
-    '<text x="180" y="109" text-anchor="middle" fill="#e6ebf2" font-size="14" font-family="Courier New,monospace">'+mfgEscapeXml(tmpl.part.toUpperCase())+'</text>' +
+    '<text x="180" y="109" text-anchor="middle" fill="#e6ebf2" font-size="'+plateFont.toFixed(1)+'" font-family="Courier New,monospace">'+mfgEscapeXml(plateText)+'</text>' +
     '<text x="180" y="128" text-anchor="middle" fill="#c0c8d4" font-size="9" font-family="Courier New,monospace">TIGHTEN IN A CROSS PATTERN</text>';
   pos.forEach(function(p,idx){
     var tightened=!!done[idx], isNext=idx===next;
@@ -5052,6 +5091,17 @@ function resetGame(){
   if(!reducedMotion && !chipInterval) startChipAnimation();
 }
 
+function returnToStartScreen(){
+  saveGame(false);
+  state = null;
+  closeModal();
+  document.getElementById('tutorial-overlay').classList.add('hidden');
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('start-screen').classList.remove('hidden');
+  refreshContinueButton();
+  if(!reducedMotion && !chipInterval) startChipAnimation();
+}
+
 function refreshContinueButton(){
   var raw = safeGet(SAVE_KEY);
   var btn = document.getElementById('continue-btn');
@@ -5129,6 +5179,12 @@ document.addEventListener('click', function(e){
       break;
     case 'continue-game':
       withLock(continueGame);
+      break;
+    case 'return-start-screen':
+      withLock(function(){
+        returnToStartScreen();
+        toast('Shop saved. Back at the title screen.', 'good');
+      });
       break;
 
     case 'show-tab':
