@@ -156,6 +156,88 @@ main{ flex:1; padding:.8em; padding-bottom:2.5em; max-width:900px; margin:0 auto
 table{ width:100%; border-collapse:collapse; font-size:.85rem; }
 table th, table td{ text-align:left; padding:.35em .4em; border-bottom:1px solid var(--border); }
 
+/* ---------- DESK + WORK-ORDER THEME ---------- */
+#app{
+  background-color:#4a2d1d;
+  background-image:
+    radial-gradient(ellipse at 18% 12%,rgba(255,214,158,.10),transparent 28%),
+    radial-gradient(ellipse at 76% 64%,rgba(20,7,2,.18),transparent 35%),
+    repeating-linear-gradient(2deg,rgba(22,10,5,.14) 0 2px,transparent 2px 8px),
+    repeating-linear-gradient(90deg,transparent 0 84px,rgba(255,255,255,.025) 85px,transparent 86px),
+    linear-gradient(90deg,#3b2216 0%,#5b3823 24%,#4a2c1c 52%,#603b24 78%,#3b2115 100%);
+  background-attachment:fixed;
+}
+#app main{ padding:clamp(.8em,2vw,1.35em); }
+#tab-jobs{
+  position:relative; isolation:isolate; color:#292820;
+  background:
+    linear-gradient(rgba(72,105,123,.035) 1px,transparent 1px),
+    #f1ead7;
+  background-size:100% 28px,auto;
+  border:1px solid #b8aa86; border-radius:4px;
+  padding:clamp(1em,2.5vw,1.6em);
+  box-shadow:0 2px 0 #d8ceb4,0 12px 26px rgba(22,8,2,.38);
+}
+#tab-jobs::before{
+  content:"SHOP WORK ORDERS"; display:block; width:max-content; max-width:90%;
+  margin:-2.3em auto 1em; padding:.38em 1.5em;
+  color:#e6e9ed; background:linear-gradient(#535a61,#2d3338);
+  border:2px solid #1a1e21; border-radius:4px;
+  box-shadow:0 3px 0 rgba(0,0,0,.32);
+  font:700 .72rem/1.2 "Courier New",monospace; letter-spacing:.12em;
+}
+#tab-jobs h2,#tab-jobs h3{ color:#20252a; }
+#tab-jobs > .muted,#tab-jobs .quick-jobs-collapse > .muted{ color:#5e5b50; }
+#tab-jobs .job-grid{ align-items:start; }
+#tab-jobs .job-card{
+  position:relative; overflow:hidden; color:#222a30;
+  background:
+    linear-gradient(90deg,transparent 0 28px,rgba(190,70,63,.15) 28px 29px,transparent 29px),
+    repeating-linear-gradient(0deg,transparent 0 30px,rgba(71,117,149,.10) 30px 31px),
+    #faf6e9;
+  border:1px solid #bcae87; border-radius:2px;
+  padding:1.2em 1.1em 1.1em 2.25em;
+  box-shadow:2px 3px 0 #d2c7aa,7px 9px 16px rgba(29,13,5,.23);
+}
+#tab-jobs .job-card:nth-child(3n+1){ transform:rotate(-.25deg); }
+#tab-jobs .job-card:nth-child(3n+2){ transform:rotate(.2deg); }
+#tab-jobs .job-card:nth-child(3n){ transform:rotate(-.1deg); }
+#tab-jobs .job-card::before{
+  content:""; position:absolute; left:.72em; top:.78em; width:8px; height:8px;
+  border-radius:50%; background:#c9bea2;
+  box-shadow:inset 1px 1px 2px rgba(0,0,0,.35),0 32px 0 #c9bea2,0 64px 0 #c9bea2;
+}
+#tab-jobs .job-card h3,#tab-jobs .job-card h4,#tab-jobs .job-card b,
+#tab-jobs .job-card .jc-price{ color:#1d2730; }
+#tab-jobs .job-card .muted,#tab-jobs .job-card .jc-sub,
+#tab-jobs .job-card .jc-deadline,#tab-jobs .job-card .facts{ color:#646158; }
+#tab-jobs .job-card .facts b{ color:#2f302b; }
+#tab-jobs .job-card .pill{
+  background:#ece3cc; color:#35332d; border-color:#a79a78;
+}
+#tab-jobs .job-card .pill.good{
+  background:#e3f2df; color:#176b2e; border-color:#4b9a5a;
+}
+#tab-jobs .job-card button{
+  background:#e6dfcc; color:#242a2f; border-color:#9e9275;
+  box-shadow:0 2px 0 rgba(83,68,40,.25);
+}
+#tab-jobs .job-card button:hover{ background:#f1ebdb; }
+#tab-jobs .job-card button.primary{ background:var(--accent); color:#1a1200; border-color:#9b5711; }
+#tab-jobs .quick-jobs-collapse{
+  border-top:2px dashed #9e9479; color:#292820;
+}
+#tab-jobs .quick-jobs-collapse summary{ color:#292820; }
+#tab-jobs .quick-jobs-collapse summary .muted{ color:#666154; }
+@media (max-width:560px){
+  #app main{ padding:.8em .55em 1.5em; }
+  #tab-jobs{ padding:1em .7em; }
+  #tab-jobs::before{ margin-top:-2em; }
+  #tab-jobs .job-card{ padding-left:1.8em; }
+}
+
+
+
 /* modal */
 .modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:flex-end; justify-content:center; z-index:50; padding:0; }
 @media (min-width:640px){ .modal-backdrop{ align-items:center; padding:1em; } }
