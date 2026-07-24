@@ -110,7 +110,6 @@ label{ display:block; margin:.5em 0 .2em; font-size:.9rem; color:var(--text-dim)
 .start-actions button{ min-width:200px; font-size:1.05rem; }
 
 
-
 /* ---------- APP LAYOUT ---------- */
 #app{ display:flex; flex-direction:column; min-height:100vh; }
 #header-bar{
@@ -146,7 +145,7 @@ main{ flex:1; padding:.8em; padding-bottom:2.5em; max-width:900px; margin:0 auto
 .quick-jobs-collapse{ margin-top:1.6em; border-top:1px solid var(--border); padding-top:.4em; }
 .quick-jobs-collapse summary{ cursor:pointer; font-size:1.15rem; font-weight:700; padding:.6em 0; min-height:44px; display:flex; align-items:center; gap:.4em; list-style:none; }
 .quick-jobs-collapse summary::-webkit-details-marker{ display:none; }
-.quick-jobs-collapse summary::before{ content:"▸"; display:inline-block; transition:transform .15s ease; }
+.quick-jobs-collapse summary::before{ content:"â–¸"; display:inline-block; transition:transform .15s ease; }
 .quick-jobs-collapse[open] summary::before{ transform:rotate(90deg); }
 .upgrade-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:.8em; }
 .stat-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:.6em; margin:.6em 0; }
@@ -235,8 +234,6 @@ table th, table td{ text-align:left; padding:.35em .4em; border-bottom:1px solid
   #tab-jobs::before{ margin-top:-2em; }
   #tab-jobs .job-card{ padding-left:1.8em; }
 }
-
-
 
 /* modal */
 .modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:flex-end; justify-content:center; z-index:50; padding:0; }
@@ -368,8 +365,8 @@ body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behav
 
   <div class="start-control-row">
     <div class="mode-select" role="group" aria-label="Choose a play mode">
-      <button type="button" class="mode-btn mode-btn-clean" data-action="set-start-mode" data-mode="guided" aria-pressed="true" aria-label="Clean Hands — Beginner guided mode"></button>
-      <button type="button" class="mode-btn mode-btn-shop" data-action="set-start-mode" data-mode="machinist" aria-pressed="false" aria-label="Shop Hands — Experienced machinist mode"></button>
+      <button type="button" class="mode-btn mode-btn-clean" data-action="set-start-mode" data-mode="guided" aria-pressed="true" aria-label="Clean Hands â€” Beginner guided mode"></button>
+      <button type="button" class="mode-btn mode-btn-shop" data-action="set-start-mode" data-mode="machinist" aria-pressed="false" aria-label="Shop Hands â€” Experienced machinist mode"></button>
     </div>
     <button type="button" class="start-settings-btn" data-action="open-start-settings" aria-label="Settings">Settings</button>
   </div>
@@ -389,7 +386,6 @@ body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behav
   </div>
   <p class="muted" id="continue-hint" style="margin-top:.6em; font-size:.8rem;">No saved shop found yet.</p>
 </div>
-
 
 
 <div id="app" class="hidden">
@@ -422,7 +418,7 @@ body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behav
       <div class="job-grid" id="blueprint-jobs"></div>
 
       <details class="quick-jobs-collapse">
-        <summary class="section-title">Quick Jobs <span class="muted" style="font-weight:400;">(legacy jobs — no blueprint workflow)</span></summary>
+        <summary class="section-title">Quick Jobs <span class="muted" style="font-weight:400;">(legacy jobs â€” no blueprint workflow)</span></summary>
         <p class="muted">Simple jobs: accept, pick a setup, and run production straight away.</p>
         <div class="job-grid" id="job-board"></div>
       </details>
@@ -509,14 +505,14 @@ body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behav
 /* ============================== DATA ============================== */
 
 var SAVE_KEY = 'g2p_save';
-var SAVE_VERSION = 4;
+var SAVE_VERSION = 6;
 
 /* Normalized minigame/process scores (0-1, 0.7 = competent-neutral baseline so old
    saves and un-played minigames behave like a reasonably-run job, not a broken one). */
 function mfgDefaultScores(){
   return {
     stockPlacementScore:0.7, materialEfficiency:0.7, orientationQuality:0.7,
-    featureAssignmentQuality:0.7, traceScore:0.7, operationOrderScore:0.7,
+    featureAssignmentQuality:0.7, traceScore:0.7, tabPlacementScore:0.7, operationOrderScore:0.7,
     alignmentScore:0.7, workZeroQuality:0.7, setupRigidity:0.7,
     programmingQuality:0.7, inspectionConfidence:0.7
   };
@@ -619,7 +615,7 @@ var JOB_TEMPLATES = [
 var UPGRADES = {
   maintenanceBench:  { key:'maintenanceBench',  label:'Maintenance Bench',  cost:600,  desc:'Faster, more effective maintenance. Slows condition loss over time.' },
   betterTooling:      { key:'betterTooling',      label:'Better Tooling Package', cost:900,  desc:'Unlocks mild steel jobs and reduces tool wear by 15%.' },
-  inspectionPackage:  { key:'inspectionPackage',  label:'Inspection Package', cost:750,  desc:'Sharper measurement — more accurate inspection results. Required to move out of the garage.' },
+  inspectionPackage:  { key:'inspectionPackage',  label:'Inspection Package', cost:750,  desc:'Sharper measurement â€” more accurate inspection results. Required to move out of the garage.' },
   workholding:        { key:'workholding',        label:'Workholding Upgrade', cost:500,  desc:'Stiffer vise and fixturing reduces chatter risk and workholding events.' },
   mistCoolant:        { key:'mistCoolant',        label:'Mist Lubrication / Coolant Upgrade', cost:650, desc:'Unlocks effective mist cooling, cutting heat risk.' },
   camSoftware:        { key:'camSoftware',        label:'CAM Software Upgrade', cost:1100, desc:'Optimized toolpaths: 10% faster cycles and an auto-recommend setup button.' }
@@ -676,7 +672,6 @@ var OP_STEP_BASE_SECONDS = {
   tabCleanup:12
 };
 
-
 function mfgFeature(def){
   return Object.assign({ steps: FEATURE_DEFAULT_STEPS[def.type] || ['face'] }, def);
 }
@@ -686,7 +681,7 @@ var MFG_JOBS = {
   nameplate: {
     id:'mfg_nameplate', partNumber:'NP-101', part:'Custom Name Plate', tutorial:true,
     customer:'Maple Street Signs', materialKey:'aluminum', qty:10, dueSec:900,
-    basePayment:210, difficulty:1, minRep:0,
+    basePayment:360, difficulty:1, minRep:0,
     stockOptions:[
       { id:'snug', label:'120 x 60 x 6 mm (snug)', length:120, width:60, thickness:6, costMult:1.0 },
       { id:'oversize', label:'130 x 70 x 8 mm (oversize)', length:130, width:70, thickness:8, costMult:1.3 }
@@ -696,7 +691,7 @@ var MFG_JOBS = {
     finished:{ length:120, width:60, thickness:6 },
     setupsRequired:1,
     setupDefs:[
-      { n:1, label:'Setup 1 — Face, Drill & Engrave', faceUp:'top', recommendedWorkholding:['standardJaws','parallels'] }
+      { n:1, label:'Setup 1 â€” Face, Drill & Engrave', faceUp:'top', recommendedWorkholding:['standardJaws','parallels'] }
     ],
     features:[
       mfgFeature({ id:'f1', type:'face', face:'top', setupMin:1, label:'Top face' }),
@@ -750,7 +745,7 @@ var MFG_JOBS = {
     ],
     setupsRequired:1,
     setupDefs:[
-      { n:1, label:'Setup 1 — Profile & Opener Cutout', faceUp:'top', recommendedWorkholding:['standardJaws','parallels'] }
+      { n:1, label:'Setup 1 â€” Profile & Opener Cutout', faceUp:'top', recommendedWorkholding:['standardJaws','parallels'] }
     ],
     features:[
       mfgFeature({ id:'f1', type:'face', face:'top', setupMin:1, label:'Top face' }),
@@ -784,15 +779,13 @@ var MFG_JOBS = {
     contourWidthIn:0.145,
     cutterDiameterIn:0.125,
     contourClearanceIn:0.020,
-    holdingTabs:[
-      [[0,25],[0,33]],
-      [[25,33],[25,41]],
-      [[50,20],[59,20]],
-      [[59,0],[69,0]]
-    ],
+    // Candidate distances around the 260 mm perimeter. Players choose which
+    // locations become tabs; the recommended four match the marked example.
+    tabCandidateArc:[4,16,40,64,78,90,104,120,138,153,165,180,195,208,225,245],
+    recommendedTabPlacements:[3,8,10,14],
     setupsRequired:1,
     setupDefs:[
-      { n:1, label:'Setup 1 — Drill Holes, Tabbed Contour & Cleanup', faceUp:'top',
+      { n:1, label:'Setup 1 â€” Drill Holes, Tabbed Contour & Cleanup', faceUp:'top',
         recommendedWorkholding:['tabs'],
         note:'Drill every hole while the plate is fully supported. Then cut the 0.145 in outer contour with a 1/8 in end mill, leaving four tabs. Break the tabs off and sand them flush after unloading.' }
     ],
@@ -815,7 +808,6 @@ var MFG_JOBS = {
     toolKey:'em18'
   }
 };
-
 
 /* ---- Manufacturing rule engine: warnings for a player-built plan ---- */
 function evaluateMfgPlan(tmpl, plan){
@@ -859,6 +851,10 @@ function evaluateMfgPlan(tmpl, plan){
   tmpl.features.forEach(function(f){
     if(!allAssigned[f.id]) warnings.push({ level:'warn', text:'"' + f.label + '" is not assigned to any setup yet.' });
   });
+  if(tmpl.id === 'mfg_lBracket'){
+    var tabCheck=mfgEvaluateTabPlacement(tmpl,plan.tabPlacements||[]);
+    tabCheck.issues.forEach(function(issue){ warnings.push(issue); });
+  }
 
   return warnings;
 }
@@ -890,6 +886,93 @@ function polyPath(pts, scaleX, scaleY, ox, oy, flipY, boxH){
     var y = flipY ? (oy + boxH - p[1]*scaleY) : (oy + p[1]*scaleY);
     return x.toFixed(1) + ',' + y.toFixed(1);
   }).join(' L') + ' Z';
+}
+
+function mfgLBracketTabCandidates(tmpl){
+  if(!tmpl || !tmpl.planOutline || !tmpl.tabCandidateArc) return [];
+  var pts = tmpl.planOutline.concat([tmpl.planOutline[0]]);
+  var segments = [], corners = [0], perimeter = 0;
+  for(var i=1;i<pts.length;i++){
+    var a=pts[i-1], b=pts[i], len=Math.hypot(b[0]-a[0],b[1]-a[1]);
+    segments.push({ a:a, b:b, start:perimeter, len:len, tx:(b[0]-a[0])/len, ty:(b[1]-a[1])/len });
+    perimeter += len;
+    corners.push(perimeter);
+  }
+  corners.pop();
+  return tmpl.tabCandidateArc.map(function(s, idx){
+    var seg=segments[segments.length-1];
+    for(var j=0;j<segments.length;j++){
+      if(s <= segments[j].start+segments[j].len){ seg=segments[j]; break; }
+    }
+    var along=clamp(s-seg.start,0,seg.len);
+    var p=[seg.a[0]+seg.tx*along,seg.a[1]+seg.ty*along];
+    var half=4;
+    var pa=[p[0]-seg.tx*half,p[1]-seg.ty*half];
+    var pb=[p[0]+seg.tx*half,p[1]+seg.ty*half];
+    var cornerDistance=Infinity;
+    corners.forEach(function(c){
+      var d=Math.abs(s-c);
+      cornerDistance=Math.min(cornerDistance,d,perimeter-d);
+    });
+    return { index:idx, s:s, point:p, a:pa, b:pb, cornerDistance:cornerDistance, perimeter:perimeter };
+  });
+}
+function mfgLBracketTabSegments(tmpl, selected){
+  var chosen={};
+  (selected||[]).forEach(function(i){ chosen[i]=true; });
+  return mfgLBracketTabCandidates(tmpl).filter(function(c){ return chosen[c.index]; });
+}
+function mfgEvaluateTabPlacement(tmpl, selected){
+  var candidates=mfgLBracketTabCandidates(tmpl);
+  var unique={};
+  (selected||[]).forEach(function(i){ if(candidates[i]) unique[i]=true; });
+  var chosen=candidates.filter(function(c){ return unique[c.index]; }).sort(function(a,b){ return a.s-b.s; });
+  var count=chosen.length, score=1, issues=[];
+  if(count<3){
+    score-=0.62;
+    issues.push({ level:'bad', source:'tabs', code:'tooFew', text:'Too few tabs: the bracket will lose support and chatter during the contour cut.' });
+  }else if(count===3){
+    score-=0.28;
+    issues.push({ level:'warn', source:'tabs', code:'few', text:'Only three tabs: support is marginal and chatter is more likely.' });
+  }else if(count===5){
+    score-=0.18;
+    issues.push({ level:'warn', source:'tabs', code:'many', text:'Five tabs will hold, but add unnecessary break-off and sanding work.' });
+  }else if(count>5){
+    score-=0.48;
+    issues.push({ level:'bad', source:'tabs', code:'tooMany', text:'Too many tabs: excessive cleanup can sand flats into the profile and leave it uneven.' });
+  }
+  var near=chosen.filter(function(c){ return c.cornerDistance<8; });
+  var far=chosen.filter(function(c){ return c.cornerDistance>22; });
+  if(near.length){
+    score-=Math.min(0.48,near.length*0.18);
+    issues.push({ level:'bad', source:'tabs', code:'nearCorner', text:near.length+' tab'+(near.length===1?' is':'s are')+' too close to a corner; cleanup can round the corner and make the part not straight.' });
+  }
+  if(far.length){
+    score-=Math.min(0.36,far.length*0.12);
+    issues.push({ level:'bad', source:'tabs', code:'farCorner', text:far.length+' tab'+(far.length===1?' is':'s are')+' too far from a corner; that corner lacks support and may chatter.' });
+  }
+  var gaps=[], maxGap=Infinity, minGap=Infinity;
+  if(count>=2){
+    for(var i=0;i<count;i++){
+      var next=i===count-1 ? chosen[0].s+chosen[0].perimeter : chosen[i+1].s;
+      gaps.push(next-chosen[i].s);
+    }
+    maxGap=Math.max.apply(null,gaps);
+    minGap=Math.min.apply(null,gaps);
+    if(maxGap>110){
+      score-=0.30;
+      issues.push({ level:'bad', source:'tabs', code:'wideGap', text:'The tabs leave an unsupported span over 110 mm; the bracket can vibrate and chatter.' });
+    }else if(maxGap>100){
+      score-=0.12;
+      issues.push({ level:'warn', source:'tabs', code:'wideGap', text:'One long span has limited support; spreading the tabs more evenly would reduce chatter.' });
+    }
+    if(minGap<16){
+      score-=0.12;
+      issues.push({ level:'warn', source:'tabs', code:'clustered', text:'Two tabs are clustered together, wasting cleanup effort without supporting the rest of the part.' });
+    }
+  }
+  score=clamp(score,0,1);
+  return { score:score, count:count, chosen:chosen, issues:issues, maxGap:maxGap, minGap:minGap, good:count===4 && !issues.length };
 }
 
 /* Cabinet-style pseudo-3D extrusion of a 2D profile so a flat silhouette
@@ -1138,6 +1221,13 @@ function buildPartVisualSVG(tmpl, viewMode, ctx){
    ============================================================ */
 
 function mfgMachineBusy(){ return !!state.activeProduction || !!state.mfgActive; }
+function mfgParkedJob(tmplKey){
+  return state.mfgParked && state.mfgParked[tmplKey] ? state.mfgParked[tmplKey] : null;
+}
+function mfgRuntimeJob(tmplKey){
+  if(state.mfgActive && state.mfgActive.tmplKey === tmplKey) return state.mfgActive;
+  return mfgParkedJob(tmplKey);
+}
 
 function mfgComputeDefaultPlan(tmpl){
   var setups = tmpl.setupDefs.map(function(sd){
@@ -1147,7 +1237,9 @@ function mfgComputeDefaultPlan(tmpl){
       featureIds: tmpl.features.filter(function(f){ return f.setupMin === sd.n; }).map(function(f){ return f.id; })
     };
   });
-  return { stockId: tmpl.recommendedStockId, setups: setups };
+  var plan = { stockId: tmpl.recommendedStockId, setups: setups };
+  if(tmpl.recommendedTabPlacements) plan.tabPlacements = tmpl.recommendedTabPlacements.slice();
+  return plan;
 }
 function mfgDefaultProgram(tmpl){
   return { setups: tmpl.setupDefs.map(function(sd){ return { n: sd.n, toolKey: tmpl.toolKey, preset: 'balanced' }; }) };
@@ -1325,6 +1417,10 @@ function mfgComputeQuality(tmpl, plan, program, machineCondition, toolCondition,
     var traceScore = mfgCombinedTraceScore(tmpl.id.replace('mfg_',''), plan.traceResults);
     score -= (0.7 - traceScore) * 40;
   }
+  if(tmpl.id==='mfg_lBracket'){
+    var tabScore=mfgEvaluateTabPlacement(tmpl,plan.tabPlacements||[]).score;
+    score-=(0.7-tabScore)*45;
+  }
   score += (bonus || 0);
   return clamp(Math.round(score), 2, 100);
 }
@@ -1336,17 +1432,17 @@ function mfgComputeQuality(tmpl, plan, program, machineCondition, toolCondition,
    dramatic message on a crash, or null. */
 function mfgCrashRoll(tmpl, plan){
   var warnings = evaluateMfgPlan(tmpl, plan);
-  var bad = warnings.filter(function(w){ return w.level === 'bad'; }).length;
-  var warn = warnings.filter(function(w){ return w.level === 'warn'; }).length;
+  var bad = warnings.filter(function(w){ return w.level === 'bad' && w.source!=='tabs'; }).length;
+  var warn = warnings.filter(function(w){ return w.level === 'warn' && w.source!=='tabs'; }).length;
   var chance = bad*0.16 + warn*0.05;
   if(chance <= 0 || Math.random() >= chance) return null;
   var messages = bad > 0 ? [
-    'CRASH — the part shifted mid-cut and the endmill snapped.',
-    'CRASH — the cutter dug into the vise jaws. Tool destroyed.',
-    'CRASH — weak clamping let the part lift into the spindle. Endmill broken.'
+    'CRASH â€” the part shifted mid-cut and the endmill snapped.',
+    'CRASH â€” the cutter dug into the vise jaws. Tool destroyed.',
+    'CRASH â€” weak clamping let the part lift into the spindle. Endmill broken.'
   ] : [
-    'CRASH — marginal workholding let the part walk, and the tool couldn’t take it.',
-    'CRASH — chatter from the loose setup snapped the cutter.'
+    'CRASH â€” marginal workholding let the part walk, and the tool couldnâ€™t take it.',
+    'CRASH â€” chatter from the loose setup snapped the cutter.'
   ];
   return messages[Math.floor(Math.random()*messages.length)];
 }
@@ -1360,8 +1456,17 @@ function mfgRunInspectionDims(tmpl, qualityScore){
     return { id:d.id, label:d.label, nominal:d.nominal, tol:d.tol, unit:d.unit, measured:measured, deviation:deviation, pass:pass };
   });
 }
-function mfgSurfaceIssues(qualityScore){
+function mfgSurfaceIssues(qualityScore,tmpl,plan){
   var issues = [];
+  if(tmpl && tmpl.id==='mfg_lBracket'){
+    var tabs=mfgEvaluateTabPlacement(tmpl,(plan&&plan.tabPlacements)||[]);
+    var codes={};
+    tabs.issues.forEach(function(i){ codes[i.code]=true; });
+    if(codes.nearCorner) issues.push('Tab cleanup was too close to a corner; sanding rounded the corner and the part is not straight.');
+    if(codes.farCorner || codes.tooFew || codes.few || codes.wideGap) issues.push('The bracket lacked support near a corner and chattered during contouring.');
+    if(codes.tooMany || codes.many) issues.push('Extra tab cleanup left visible flats and an uneven outer profile.');
+    if(codes.clustered && !codes.tooMany) issues.push('Clustered tabs added cleanup but left another section poorly supported.');
+  }
   if(qualityScore < 45 && Math.random()*100 < 55) issues.push('Chatter marks visible on the finished contour.');
   else if(qualityScore < 68 && Math.random()*100 < 30) issues.push('Light tool marks on the finished surface.');
   if(qualityScore < 55 && Math.random() < 0.3) issues.push('Minor burrs at hole edges.');
@@ -1385,6 +1490,58 @@ function mfgMaxBatch(confidenceKey){
 }
 
 /* ---- Machine slot: setup / first article / inspect / correct / approve / production / ship ---- */
+function mfgFreshClampSetup(){
+  /* Cross-pattern tightening: top-left, bottom-right, top-right, bottom-left. */
+  return { sequence:[0,3,1,2], progress:[], error:null };
+}
+function mfgClampSetupState(ap){
+  if(!ap.clampSetup || !Array.isArray(ap.clampSetup.sequence)){
+    ap.clampSetup = mfgFreshClampSetup();
+  }
+  if(!Array.isArray(ap.clampSetup.progress)) ap.clampSetup.progress = [];
+  return ap.clampSetup;
+}
+function mfgClampSetupComplete(ap){
+  var cs=mfgClampSetupState(ap);
+  return cs.progress.length >= cs.sequence.length;
+}
+function mfgTightenClampBolt(tmplKey, boltIdx){
+  var ap=state.mfgActive;
+  if(!ap || ap.tmplKey!==tmplKey || ap.stage!=='setup') return { ok:false };
+  var cs=mfgClampSetupState(ap);
+  if(mfgClampSetupComplete(ap)) return { ok:true, complete:true };
+  var expected=cs.sequence[cs.progress.length];
+  if(boltIdx===expected){
+    cs.progress.push(boltIdx);
+    cs.error=null;
+    scheduleAutosave();
+    return { ok:true, complete:mfgClampSetupComplete(ap) };
+  }
+  cs.progress=[];
+  cs.error='Uneven tightening can lift the plate. Start the cross pattern again.';
+  scheduleAutosave();
+  return { ok:false, reset:true };
+}
+function mfgParkActiveJob(){
+  var ap=state.mfgActive;
+  if(!ap || state.activeProduction) return false;
+  var canPark=ap.stage==='approved' || (ap.stage==='production' && ap.paused);
+  if(!canPark) return false;
+  state.mfgParked=state.mfgParked||{};
+  state.mfgParked[ap.tmplKey]=ap;
+  state.mfgActive=null;
+  scheduleAutosave();
+  return true;
+}
+function mfgResumeParkedJob(tmplKey){
+  if(mfgMachineBusy()) return false;
+  var parked=mfgParkedJob(tmplKey);
+  if(!parked) return false;
+  state.mfgActive=parked;
+  delete state.mfgParked[tmplKey];
+  scheduleAutosave();
+  return true;
+}
 function mfgSetupOnMachine(tmplKey){
   if(mfgMachineBusy()) return false;
   var prep = state.mfgPrep[tmplKey];
@@ -1403,6 +1560,8 @@ function mfgSetupOnMachine(tmplKey){
     lastInspection: null, correctionLog: [], _correctionBoost: 0,
     economics: { materialCost:0, setupCost:0, scrapCost:0 },
     scores: (prep.scores ? Object.assign({}, mfgDefaultScores(), prep.scores) : mfgDefaultScores()),
+    clampSetup: mfgFreshClampSetup(),
+    partsPerCycle: 1,
     shipped: false
   };
   delete state.mfgPrep[tmplKey];
@@ -1412,6 +1571,7 @@ function mfgSetupOnMachine(tmplKey){
 function mfgConfirmSetupRunFirstArticle(){
   var ap = state.mfgActive;
   if(!ap || ap.stage !== 'setup') return false;
+  if(!mfgClampSetupComplete(ap)) return false;
   var tmpl = MFG_JOBS[ap.tmplKey];
   ap.completedFeatureIds = {};
   ap.elapsedSim = 0;
@@ -1476,7 +1636,7 @@ function mfgFinishCycle(){
       return;
     }
     var dims = mfgRunInspectionDims(tmpl, quality);
-    var issues = mfgSurfaceIssues(quality);
+    var issues = mfgSurfaceIssues(quality,tmpl,ap.plan);
     var pass = dims.every(function(d){ return d.pass; }) && issues.length === 0;
     ap.lastInspection = { dims: dims, issues: issues, pass: pass, quality: quality };
     ap.stage = 'inspecting';
@@ -1503,14 +1663,19 @@ function mfgFinishCycle(){
       render();
       return;
     }
-    var pass2 = Math.random()*100 < quality;
-    if(pass2) ap.goodCount++; else { ap.scrapCount++; ap.economics.scrapCost += Math.round(tmpl.materialCostBase); }
-    ap.blanksInStock = Math.max(0, ap.blanksInStock - 1);
-    var wear2 = 3 + (100-quality)*0.05;
-    state.tools[tmpl.toolKey].condition = clamp(state.tools[tmpl.toolKey].condition - wear2, 0, 100);
-    state.machine.condition = clamp(state.machine.condition - 0.6, 0, 100);
-    ap.batchRemaining = Math.max(0, ap.batchRemaining - 1);
-    ap.confidenceScore = clamp(ap.confidenceScore + (pass2 ? 3 : -18), 0, 100);
+    var partsThisCycle = Math.min(ap.partsPerCycle||1, ap.batchRemaining, ap.qtyTarget-ap.goodCount, ap.blanksInStock);
+    var passedThisCycle = 0;
+    for(var cyclePart=0; cyclePart<partsThisCycle; cyclePart++){
+      var pass2 = Math.random()*100 < quality;
+      if(pass2){ ap.goodCount++; passedThisCycle++; }
+      else { ap.scrapCount++; ap.economics.scrapCost += Math.round(tmpl.materialCostBase); }
+      ap.blanksInStock = Math.max(0, ap.blanksInStock - 1);
+      var wear2 = 3 + (100-quality)*0.05;
+      state.tools[tmpl.toolKey].condition = clamp(state.tools[tmpl.toolKey].condition - wear2, 0, 100);
+      state.machine.condition = clamp(state.machine.condition - 0.6, 0, 100);
+    }
+    ap.batchRemaining = Math.max(0, ap.batchRemaining - partsThisCycle);
+    ap.confidenceScore = clamp(ap.confidenceScore + (passedThisCycle===partsThisCycle ? 3*partsThisCycle : -18), 0, 100);
     ap.confidence = mfgConfidenceFromScore(ap.confidenceScore);
 
     var doneQty = ap.goodCount >= ap.qtyTarget;
@@ -1568,6 +1733,7 @@ function mfgScrapAndRestart(){
   ap.blanksInStock = Math.max(0, ap.blanksInStock - 1);
   ap.economics.scrapCost = (ap.economics.scrapCost||0) + Math.round(MFG_JOBS[ap.tmplKey].materialCostBase);
   ap.stage = 'setup';
+  ap.clampSetup = mfgFreshClampSetup();
   scheduleAutosave();
   return true;
 }
@@ -1587,19 +1753,22 @@ function mfgApproveProduction(){
   scheduleAutosave();
   return true;
 }
-function mfgStartBatch(sizeChoice){
+function mfgStartBatch(sizeChoice, partsPerCycle){
   var ap = state.mfgActive; if(!ap || (ap.stage !== 'approved' && ap.stage !== 'production')) return false;
   var tmpl = MFG_JOBS[ap.tmplKey];
   var remainingQty = Math.max(0, ap.qtyTarget - ap.goodCount);
   var n = sizeChoice === 'remaining' ? remainingQty : Math.min(sizeChoice, remainingQty);
+  partsPerCycle = partsPerCycle===2 && ap.tmplKey==='nameplate' ? 2 : 1;
+  if(partsPerCycle===2) n=Math.min(2,remainingQty);
   var maxAllowed = mfgMaxBatch(ap.confidence);
   if(n > maxAllowed) n = maxAllowed;
-  if(n <= 0) return false;
+  if(n <= 0 || (partsPerCycle===2 && n<2)) return false;
   ap.batchSize = n; ap.batchRemaining = n;
+  ap.partsPerCycle = partsPerCycle;
   ap.stage = 'production';
   ap.paused = false; ap.stopReason = null;
   ap.elapsedSim = 0; ap.completedFeatureIds = {};
-  ap.totalSim = mfgCycleBreakdown(tmpl, ap.program).total;
+  ap.totalSim = Math.round(mfgCycleBreakdown(tmpl, ap.program).total * (partsPerCycle===2 ? 1.45 : 1));
   scheduleAutosave();
   return true;
 }
@@ -1665,12 +1834,15 @@ function mfgSimulateOffline(elapsedRealSec){
       break;
     }
     var quality = mfgComputeQuality(tmpl, ap.plan, ap.program, state.machine.condition, toolCond, ap._correctionBoost);
-    var pass = Math.random()*100 < quality;
-    if(pass){ ap.goodCount++; report.goodMade++; } else { ap.scrapCount++; report.scrapMade++; }
-    ap.blanksInStock = Math.max(0, ap.blanksInStock - 1); report.blanksUsed++;
-    toolCond = clamp(toolCond - (3 + (100-quality)*0.05), 0, 100);
-    state.machine.condition = clamp(state.machine.condition - 0.6, 0, 100);
-    ap.batchRemaining = Math.max(0, ap.batchRemaining - 1);
+    var offlineParts = Math.min(ap.partsPerCycle||1, ap.batchRemaining, ap.qtyTarget-ap.goodCount, ap.blanksInStock);
+    for(var offlinePart=0; offlinePart<offlineParts; offlinePart++){
+      var pass = Math.random()*100 < quality;
+      if(pass){ ap.goodCount++; report.goodMade++; } else { ap.scrapCount++; report.scrapMade++; }
+      ap.blanksInStock = Math.max(0, ap.blanksInStock - 1); report.blanksUsed++;
+      toolCond = clamp(toolCond - (3 + (100-quality)*0.05), 0, 100);
+      state.machine.condition = clamp(state.machine.condition - 0.6, 0, 100);
+    }
+    ap.batchRemaining = Math.max(0, ap.batchRemaining - offlineParts);
 
     var doneQty = ap.goodCount >= ap.qtyTarget;
     var toolDead = toolCond <= 3;
@@ -1721,6 +1893,7 @@ var mfgPartView = 'blueprint';
 
 function mfgCurrentStageKey(tmplKey){
   if(state.mfgActive && state.mfgActive.tmplKey === tmplKey) return state.mfgActive.stage;
+  if(mfgParkedJob(tmplKey)) return mfgParkedJob(tmplKey).stage;
   var prep = state.mfgPrep[tmplKey];
   if(prep) return prep.stage;
   return 'blueprint';
@@ -1733,10 +1906,13 @@ function renderBlueprintJobs(){
     var tmpl = MFG_JOBS[key];
     var stageKey = mfgCurrentStageKey(key);
     var onMachine = state.mfgActive && state.mfgActive.tmplKey === key;
-    var statusLabel = onMachine ? ('On Machine — ' + mfgStageStatusLabel(stageKey)) :
-      (state.mfgPrep[key] ? ('In Prep — ' + mfgStageStatusLabel(stageKey)) : 'New Blueprint');
-    var statusCls = onMachine ? 'good' : (state.mfgPrep[key] ? 'warn' : '');
+    var parked = mfgParkedJob(key);
+    var statusLabel = onMachine ? ('On Machine â€” ' + mfgStageStatusLabel(stageKey)) :
+      (parked ? ('Off Machine â€” ' + parked.goodCount + '/' + parked.qtyTarget + ' complete') :
+      (state.mfgPrep[key] ? ('In Prep â€” ' + mfgStageStatusLabel(stageKey)) : 'New Blueprint'));
+    var statusCls = onMachine ? 'good' : ((parked || state.mfgPrep[key]) ? 'warn' : '');
     var customerName = (onMachine && state.mfgActive.customerName) ||
+      (parked && parked.customerName) ||
       (state.mfgPrep[key] && state.mfgPrep[key].customerName) || tmpl.customer;
     return '<div class="card job-card">' +
       '<div class="spread"><h3 style="margin:0;">' + tmpl.part + (key==='nameplate' ? ' <span class="pill" style="background:var(--accent); color:#1a1200; border-color:var(--accent);">Start Here</span>' : '') + '</h3><span class="pill ' + statusCls + '">' + statusLabel + '</span></div>' +
@@ -1744,7 +1920,7 @@ function renderBlueprintJobs(){
       '<div class="jc-row"><span class="jc-price">' + fmtMoney(tmpl.basePayment) + '</span>' +
         '<span class="jc-deadline">Qty ' + tmpl.qty + '</span></div>' +
       '<div class="jc-row jc-meta">' + materialChipHtml(tmpl.materialKey) + difficultyDotsHtml(tmpl.difficulty) + '</div>' +
-      '<button type="button" data-action="open-mfg-job" data-key="' + key + '">' + (stageKey==='blueprint' && !state.mfgPrep[key] && !onMachine ? 'View Blueprint' : 'Continue') + '</button>' +
+      '<button type="button" data-action="open-mfg-job" data-key="' + key + '">' + (stageKey==='blueprint' && !state.mfgPrep[key] && !onMachine && !parked ? 'View Blueprint' : (parked ? 'Resume Job' : 'Continue')) + '</button>' +
     '</div>';
   }).join('');
   // Only touch the DOM when the rendered markup actually changes, so a
@@ -1755,12 +1931,12 @@ function renderBlueprintJobs(){
 function mfgStageStatusLabel(stageKey){
   return { blueprint:'Reviewing Blueprint', plan:'Planning', programming:'Programming', readyForSetup:'Ready for Setup',
     setup:'Setup', firstArticle:'Running First Article', correcting:'Correcting', inspecting:'Inspecting',
-    approved:'Approved — Ready to Run', production:'In Production' }[stageKey] || stageKey;
+    approved:'Approved â€” Ready to Run', production:'In Production' }[stageKey] || stageKey;
 }
 
 function openMfgModal(key){
   openMfgTmplKey = key;
-  var isNewPrep = !state.mfgPrep[key] && !(state.mfgActive && state.mfgActive.tmplKey === key);
+  var isNewPrep = !state.mfgPrep[key] && !mfgRuntimeJob(key);
   if(isNewPrep) mfgStartPrep(key);
   mfgActiveTab = MFG_TABS[MFG_STAGE_TAB_INDEX[mfgCurrentStageKey(key)] || 0].key;
   mfgPartView = 'blueprint';
@@ -1827,9 +2003,9 @@ function mfgUpdateLiveProgress(){
   var textEl = document.getElementById('mfg-progress-text');
   if(textEl){
     if(mfgActiveTab === 'firstArticle'){
-      textEl.textContent = 'First article ' + (ap.firstArticleCount+1) + ' of ' + ap.requiredFirstArticles + ' required · ' + fmtTime(Math.max(0,ap.totalSim-ap.elapsedSim)) + ' remaining';
+      textEl.textContent = 'First article ' + (ap.firstArticleCount+1) + ' of ' + ap.requiredFirstArticles + ' required Â· ' + fmtTime(Math.max(0,ap.totalSim-ap.elapsedSim)) + ' remaining';
     } else {
-      textEl.textContent = 'Running batch — ' + ap.batchRemaining + ' part(s) left in this batch.';
+      textEl.textContent = ((ap.partsPerCycle||1)===2 ? 'Running two nested nameplates in one cycle' : 'Running batch') + ' â€” ' + ap.batchRemaining + ' part(s) left in this batch.';
     }
   }
   // The tab body itself isn't rebuilt on this lightweight path, so the
@@ -1858,7 +2034,8 @@ function mfgBlueprintTabHtml(tmpl, key){
   var prep = state.mfgPrep[key];
   var canAdvance = prep && prep.stage === 'blueprint';
   var onMachine = state.mfgActive && state.mfgActive.tmplKey === key;
-  var customerName = (onMachine && state.mfgActive.customerName) || (prep && prep.customerName) || tmpl.customer;
+  var runtimeJob = mfgRuntimeJob(key);
+  var customerName = (runtimeJob && runtimeJob.customerName) || (prep && prep.customerName) || tmpl.customer;
   return '<p class="muted" style="margin:0 0 .6em;">' + customerName + ' &middot; P/N ' + tmpl.partNumber + '</p>' +
     '<div class="row" role="group" aria-label="Part view">' +
       '<button type="button" data-action="mfg-partview" data-view="blueprint" aria-pressed="' + (mfgPartView==='blueprint') + '">Blueprint</button>' +
@@ -1963,12 +2140,11 @@ function mfgStockPlacementFeedback(scores, tmpl){
   return lines;
 }
 
-
 var mfgStockPlacementDrag = null; /* live drag session state, not persisted */
 
 function mfgStockPlacementHtml(tmpl, key, editable){
   var prep = state.mfgPrep[key];
-  var plan = prep ? prep.plan : (state.mfgActive ? state.mfgActive.plan : mfgComputeDefaultPlan(tmpl));
+  var plan = prep ? prep.plan : (mfgRuntimeJob(key) ? mfgRuntimeJob(key).plan : mfgComputeDefaultPlan(tmpl));
   var stockOpt = mfgStockOption(tmpl, plan.stockId);
   var placement = plan.stockPlacement || mfgDefaultStockPlacement(tmpl, stockOpt);
   var m = mfgStockMargins(tmpl, stockOpt);
@@ -2014,8 +2190,8 @@ function mfgStockPlacementHtml(tmpl, key, editable){
       var hx = ox+f.x*scale, hy = oy+boxH-f.y*scale;
       processOverlayHtml += '<circle cx="'+hx.toFixed(1)+'" cy="'+hy.toFixed(1)+'" r="'+Math.max(3,f.diameter*scale/2).toFixed(1)+'" fill="#111820" stroke="#dfe6ed" stroke-width="1" style="pointer-events:none;"/>';
     });
-    (tmpl.holdingTabs || []).forEach(function(tab){
-      var a=tab[0], b=tab[1];
+    mfgLBracketTabSegments(tmpl,plan.tabPlacements).forEach(function(tab){
+      var a=tab.a, b=tab.b;
       processOverlayHtml += '<line x1="'+(ox+a[0]*scale).toFixed(1)+'" y1="'+(oy+boxH-a[1]*scale).toFixed(1)+'" x2="'+(ox+b[0]*scale).toFixed(1)+'" y2="'+(oy+boxH-b[1]*scale).toFixed(1)+'" stroke="#ff4545" stroke-width="'+Math.max(6,kerfPx+2).toFixed(1)+'" stroke-linecap="square" style="pointer-events:none;"/>';
     });
   }
@@ -2050,7 +2226,6 @@ function mfgStockPlacementHtml(tmpl, key, editable){
     resultHtml +
   '</div>';
 }
-
 
 var mfgStockHintOpen = false;
 
@@ -2168,7 +2343,7 @@ function mfgScoreOrientation(tmpl, orientation){
 
 function mfgOrientationHtml(tmpl, key, editable){
   var prep = state.mfgPrep[key];
-  var plan = prep ? prep.plan : (state.mfgActive ? state.mfgActive.plan : mfgComputeDefaultPlan(tmpl));
+  var plan = prep ? prep.plan : (mfgRuntimeJob(key) ? mfgRuntimeJob(key).plan : mfgComputeDefaultPlan(tmpl));
   var orientation = plan.orientation || tmpl.setupDefs[0].faceUp;
   var faces = mfgOrientationFaces(tmpl);
   var faceLabel = { top:'Top Face Up', bottom:'Bottom Face Up', side:'Side Face Up' };
@@ -2191,8 +2366,8 @@ function mfgOrientationHtml(tmpl, key, editable){
 
   var quality = mfgScoreOrientation(tmpl, orientation);
   var feedback = quality >= 0.75 ?
-    { cls:'good', text:'Good choice — most of Setup 1\'s features are reachable from here.' } :
-    { cls:'bad', text:'This face blocks Setup 1\'s features — you would need to flip immediately.' };
+    { cls:'good', text:'Good choice â€” most of Setup 1\'s features are reachable from here.' } :
+    { cls:'bad', text:'This face blocks Setup 1\'s features â€” you would need to flip immediately.' };
 
   return '<div class="minigame">' +
     '<p class="minigame-instruction">Which face should be machined first?</p>' +
@@ -2241,7 +2416,7 @@ function mfgScoreFeatureAssignment(tmpl, plan){
 
 function mfgFeatureAssignmentHtml(tmpl, key, editable){
   var prep = state.mfgPrep[key];
-  var plan = prep ? prep.plan : (state.mfgActive ? state.mfgActive.plan : mfgComputeDefaultPlan(tmpl));
+  var plan = prep ? prep.plan : (mfgRuntimeJob(key) ? mfgRuntimeJob(key).plan : mfgComputeDefaultPlan(tmpl));
   var assign = plan.featureAssignment || mfgDefaultFeatureAssignment(tmpl);
 
   function pillFor(f){
@@ -2287,10 +2462,6 @@ function mfgLBracketFullOutline(tmpl){
   return pts;
 }
 var MFG_TRACE_CONTOURS = {
-  lBracket: [
-    { id:'contour', label:'the 0.145 in outer contour while preserving four tabs', plane:'top',
-      points: function(tmpl){ return tmpl.planOutline.concat([tmpl.planOutline[0]]); } }
-  ],
   bottleOpener: [
     { id:'contour', label:'the outer profile', plane:'top', points: function(tmpl){ return tmpl.planOutline.concat([tmpl.planOutline[0]]); } }
   ],
@@ -2305,7 +2476,6 @@ var MFG_TRACE_CONTOURS = {
     } }
   ]
 };
-
 
 function mfgTraceGeometry(stockOpt, plane){
   var playW=280, playH=190, pad=18;
@@ -2405,9 +2575,9 @@ function mfgTraceContourHtml(tmpl, key, contourDef, plan, editable){
 
   var resultHtml = '';
   if(done){
-    var fb = score >= 0.8 ? { cls:'good', text:'Clean contour — CAM will follow this path closely.' } :
+    var fb = score >= 0.8 ? { cls:'good', text:'Clean contour â€” CAM will follow this path closely.' } :
       score >= 0.5 ? { cls:'warn', text:'Traced, but wandered off the path in places.' } :
-      { cls:'bad', text:'Incomplete or messy trace — try again.' };
+      { cls:'bad', text:'Incomplete or messy trace â€” try again.' };
     resultHtml = '<div class="minigame-result"><span class="pill ' + fb.cls + '">' + fb.text + '</span></div>';
   }
 
@@ -2418,12 +2588,11 @@ function mfgTraceContourHtml(tmpl, key, contourDef, plan, editable){
     resultHtml +
   '</div>';
 }
-
 function mfgTraceTabHtml(tmpl, key, editable){
   var contours = MFG_TRACE_CONTOURS[key];
   if(!contours) return '';
   var prep = state.mfgPrep[key];
-  var plan = prep ? prep.plan : (state.mfgActive ? state.mfgActive.plan : mfgComputeDefaultPlan(tmpl));
+  var plan = prep ? prep.plan : (mfgRuntimeJob(key) ? mfgRuntimeJob(key).plan : mfgComputeDefaultPlan(tmpl));
   return contours.map(function(cd){ return mfgTraceContourHtml(tmpl, key, cd, plan, editable); }).join('');
 }
 
@@ -2542,6 +2711,74 @@ function mfgWireContourTrace(){
   });
 }
 
+function mfgCommitTabPlacements(key,placements){
+  var prep=state.mfgPrep[key];
+  if(!prep || prep.stage!=='plan') return false;
+  var tmpl=MFG_JOBS[key];
+  var valid={};
+  mfgLBracketTabCandidates(tmpl).forEach(function(c){ valid[c.index]=true; });
+  var clean=[];
+  (placements||[]).forEach(function(i){
+    i=parseInt(i,10);
+    if(valid[i] && clean.indexOf(i)===-1) clean.push(i);
+  });
+  clean.sort(function(a,b){ return a-b; });
+  prep.plan.tabPlacements=clean;
+  var result=mfgEvaluateTabPlacement(tmpl,clean);
+  prep.scores=Object.assign(prep.scores||mfgDefaultScores(),{ tabPlacementScore:result.score });
+  scheduleAutosave();
+  return true;
+}
+
+function mfgLBracketTabPlacementHtml(tmpl,key,editable){
+  var prep=state.mfgPrep[key];
+  var plan=prep ? prep.plan : (mfgRuntimeJob(key) ? mfgRuntimeJob(key).plan : mfgComputeDefaultPlan(tmpl));
+  var selected=(plan.tabPlacements||[]).slice();
+  var selectedMap={};
+  selected.forEach(function(i){ selectedMap[i]=true; });
+  var check=mfgEvaluateTabPlacement(tmpl,selected);
+  var stockOpt=mfgStockOption(tmpl,plan.stockId);
+  var geo=mfgTraceGeometry(stockOpt,'top');
+  var placement=plan.stockPlacement||mfgDefaultStockPlacement(tmpl,stockOpt);
+  var partGeo={ playW:geo.playW, playH:geo.playH, scale:geo.scale, boxW:geo.boxW, boxH:geo.boxH,
+    ox:geo.ox+placement.dx*geo.scale, oy:geo.oy-placement.dy*geo.scale };
+  var stockPath=mfgPtsToPathD([[0,0],[stockOpt.length,0],[stockOpt.length,stockOpt.width],[0,stockOpt.width]],geo);
+  var partPath=mfgPtsToPathD(tmpl.planOutline,partGeo);
+  var contourPx=Math.max(5,(tmpl.contourWidthIn||0.145)*25.4*geo.scale);
+  var holesHtml='';
+  tmpl.features.filter(function(f){ return f.type==='hole'; }).forEach(function(f){
+    var hp=mfgMmToPx([f.x,f.y],partGeo);
+    holesHtml+='<circle cx="'+hp[0].toFixed(1)+'" cy="'+hp[1].toFixed(1)+'" r="'+Math.max(3,f.diameter*geo.scale/2).toFixed(1)+'" fill="#111820" stroke="#dfe6ed" stroke-width="1"/>';
+  });
+  var candidatesHtml='';
+  mfgLBracketTabCandidates(tmpl).forEach(function(c){
+    var p=mfgMmToPx(c.point,partGeo), a=mfgMmToPx(c.a,partGeo), b=mfgMmToPx(c.b,partGeo);
+    var chosen=!!selectedMap[c.index];
+    candidatesHtml+='<g '+(editable?'data-action="mfg-tab-toggle" data-key="'+key+'" data-tab-idx="'+c.index+'"':'')+' role="button" aria-label="Tab location '+(c.index+1)+' '+(chosen?'selected':'not selected')+'" style="cursor:'+(editable?'pointer':'default')+';">' +
+      '<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="8" fill="'+(chosen?'rgba(255,69,69,.22)':'rgba(255,255,255,.08)')+'" stroke="'+(chosen?'#ff4545':'#738095')+'" stroke-width="1.5"/>' +
+      (chosen?'<line x1="'+a[0].toFixed(1)+'" y1="'+a[1].toFixed(1)+'" x2="'+b[0].toFixed(1)+'" y2="'+b[1].toFixed(1)+'" stroke="#ff4545" stroke-width="'+Math.max(6,contourPx+2).toFixed(1)+'" stroke-linecap="square"/>':'') +
+      '<text x="'+p[0].toFixed(1)+'" y="'+(p[1]+3).toFixed(1)+'" fill="'+(chosen?'#fff':'#c7d0dc')+'" font-size="7" font-weight="bold" text-anchor="middle" pointer-events="none">'+(c.index+1)+'</text>' +
+    '</g>';
+  });
+  var feedbackHtml=check.good ?
+    '<div class="minigame-result"><span class="pill good">Shop-ready: four tabs are on straight runs, close enough to support corners, and spread around the profile.</span></div>' :
+    '<div class="minigame-result">'+check.issues.map(function(i){ return '<span class="pill '+(i.level==='bad'?'bad':'warn')+'">'+i.text+'</span>'; }).join('')+'</div>';
+  return '<div class="minigame">' +
+    '<p class="minigame-instruction">Choose the holding-tab locations.</p>' +
+    '<p class="muted" style="font-size:.82rem;">Tap the numbered contour markers. Aim for four tabs, keep them on straight runs 8â€“22 mm from a corner, and spread support around the part.</p>' +
+    '<svg viewBox="0 0 '+geo.playW+' '+geo.playH+'" class="minigame-stage" shape-rendering="crispEdges" aria-label="Interactive L bracket tab placement">' +
+      '<path d="'+stockPath+'" fill="#272d36" stroke="#5a6474" stroke-width="1.5"/>' +
+      '<path d="'+partPath+'" fill="#aeb8c5" stroke="#111820" stroke-width="'+contourPx.toFixed(1)+'" stroke-linejoin="round"/>' +
+      holesHtml+candidatesHtml +
+    '</svg>' +
+    '<div class="minigame-controls">' +
+      '<span class="pill '+(check.count===4?'good':'')+'">'+check.count+' tab'+(check.count===1?'':'s')+' selected</span>' +
+      (editable?'<button type="button" data-action="mfg-tab-best" data-key="'+key+'">Use Recommended 4</button><button type="button" data-action="mfg-tab-clear" data-key="'+key+'">Clear Tabs</button>':'') +
+    '</div>' +
+    feedbackHtml +
+  '</div>';
+}
+
 function mfgLBracketSequenceHtml(tmpl){
   return '<div class="minigame">' +
     '<p class="minigame-instruction">Machinist sequence</p>' +
@@ -2563,7 +2800,7 @@ function mfgLBracketSequenceHtml(tmpl){
 /* ---- Process Plan tab ---- */
 function mfgPlanTabHtml(tmpl, key){
   var prep = state.mfgPrep[key];
-  var plan = prep ? prep.plan : (state.mfgActive ? state.mfgActive.plan : mfgComputeDefaultPlan(tmpl));
+  var plan = prep ? prep.plan : (mfgRuntimeJob(key) ? mfgRuntimeJob(key).plan : mfgComputeDefaultPlan(tmpl));
   var editable = prep && prep.stage === 'plan';
   var warnings = evaluateMfgPlan(tmpl, plan);
 
@@ -2573,6 +2810,7 @@ function mfgPlanTabHtml(tmpl, key){
       tmpl.stockOptions.map(function(s){ return '<option value="'+s.id+'"' + (plan.stockId===s.id?' selected':'') + '>' + s.label + '</option>'; }).join('') + '</select>';
 
   var sequenceHtml = key === 'lBracket' ? mfgLBracketSequenceHtml(tmpl) : '';
+  var tabPlacementHtml = key === 'lBracket' ? mfgLBracketTabPlacementHtml(tmpl,key,editable) : '';
   var orientationHtml = '';
   var featureAssignHtml = '';
   var traceHtml = MFG_TRACE_CONTOURS[key] ? mfgTraceTabHtml(tmpl, key, editable) : '';
@@ -2598,16 +2836,15 @@ function mfgPlanTabHtml(tmpl, key){
     return '<li style="' + (w.level==='bad'?'':'background:rgba(255,204,51,.12); border-color:var(--warn); color:#ffe9a8;') + '">' + w.text + '</li>';
   }).join('') + '</ul>' : '<p class="pill good">No plan warnings.</p>';
 
-  return stockHtml + sequenceHtml + orientationHtml + featureAssignHtml + traceHtml + setupsHtml + '<h4 class="section-title">Plan Warnings</h4>' + warnHtml +
+  return stockHtml + sequenceHtml + tabPlacementHtml + orientationHtml + featureAssignHtml + traceHtml + setupsHtml + '<h4 class="section-title">Plan Warnings</h4>' + warnHtml +
     (editable ? '<button type="button" class="primary" style="width:100%; margin-top:.8em;" data-action="mfg-advance" data-key="' + key + '" data-to="programming-start">Confirm Plan &mdash; Begin Programming</button>' : '');
 }
-
 
 /* ---- Programming tab ---- */
 function mfgProgrammingTabHtml(tmpl, key){
   var prep = state.mfgPrep[key];
-  var program = prep ? prep.program : (state.mfgActive ? state.mfgActive.program : mfgDefaultProgram(tmpl));
-  var plan = prep ? prep.plan : (state.mfgActive ? state.mfgActive.plan : mfgComputeDefaultPlan(tmpl));
+  var program = prep ? prep.program : (mfgRuntimeJob(key) ? mfgRuntimeJob(key).program : mfgDefaultProgram(tmpl));
+  var plan = prep ? prep.plan : (mfgRuntimeJob(key) ? mfgRuntimeJob(key).plan : mfgComputeDefaultPlan(tmpl));
   var editable = prep && prep.stage === 'plan';
   var isProgramming = prep && prep.stage === 'programming';
   var ready = prep && prep.stage === 'readyForSetup';
@@ -2616,7 +2853,7 @@ function mfgProgrammingTabHtml(tmpl, key){
     var s = program.setups[idx];
     var featuresForSetup = tmpl.features.filter(function(f){ return f.setupMin === sd.n; });
     var stepsHtml = featuresForSetup.map(function(f){
-      return '<li>' + f.label + ': ' + f.steps.map(function(sk){ return OP_STEP_LABELS[sk]; }).join(' → ') + '</li>';
+      return '<li>' + f.label + ': ' + f.steps.map(function(sk){ return OP_STEP_LABELS[sk]; }).join(' â†’ ') + '</li>';
     }).join('');
     var toolOptions = ['em18','em14'].map(function(tk){ return '<option value="'+tk+'"' + (s.toolKey===tk?' selected':'') + '>' + TOOLS[tk].shortLabel + '</option>'; }).join('');
     var presetOptions = ['conservative','balanced','aggressive'].map(function(p){
@@ -2656,6 +2893,47 @@ function mfgProgrammingTabHtml(tmpl, key){
 }
 
 /* ---- Setup tab ---- */
+function mfgClampSetupHtml(tmpl, key, ap){
+  var cs=mfgClampSetupState(ap);
+  var done={};
+  cs.progress.forEach(function(i){ done[i]=true; });
+  var next=cs.sequence[cs.progress.length];
+  var pos=[
+    {x:40,y:27,cx:68,cy:47},
+    {x:265,y:27,cx:292,cy:47},
+    {x:40,y:145,cx:68,cy:164},
+    {x:265,y:145,cx:292,cy:164}
+  ];
+  var order={};
+  cs.sequence.forEach(function(idx,n){ order[idx]=n+1; });
+  var svg='<svg viewBox="0 0 360 210" class="minigame-stage" shape-rendering="crispEdges" aria-label="Interactive four-clamp setup">' +
+    '<defs><linearGradient id="clamp-stock" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7d8591"/><stop offset=".5" stop-color="#59616e"/><stop offset="1" stop-color="#3e4652"/></linearGradient></defs>' +
+    '<rect width="360" height="210" fill="#10151b"/>' +
+    '<rect x="70" y="43" width="220" height="124" rx="5" fill="url(#clamp-stock)" stroke="#aab3bf" stroke-width="3"/>' +
+    '<rect x="88" y="60" width="184" height="90" rx="3" fill="#666f7c" stroke="#d7dde5" stroke-width="2" stroke-dasharray="7 5"/>' +
+    '<text x="180" y="109" text-anchor="middle" fill="#e6ebf2" font-size="14" font-family="Courier New,monospace">'+mfgEscapeXml(tmpl.part.toUpperCase())+'</text>' +
+    '<text x="180" y="128" text-anchor="middle" fill="#c0c8d4" font-size="9" font-family="Courier New,monospace">TIGHTEN IN A CROSS PATTERN</text>';
+  pos.forEach(function(p,idx){
+    var tightened=!!done[idx], isNext=idx===next;
+    var boltFill=tightened?'#35c86b':(isNext?'#ffb23f':'#303844');
+    var boltStroke=tightened?'#b8ffd1':(isNext?'#fff0b0':'#aab3bf');
+    var label=tightened?'tightened':(isNext?'next':'waiting');
+    svg+='<g role="button" tabindex="0" aria-label="Tighten bolt '+order[idx]+' '+label+'" data-action="mfg-clamp-bolt" data-key="'+key+'" data-bolt-idx="'+idx+'" style="cursor:pointer;">' +
+      '<rect x="'+p.x+'" y="'+p.y+'" width="55" height="40" rx="4" fill="#b93232" stroke="#ff6464" stroke-width="3"/>' +
+      '<circle cx="'+p.cx+'" cy="'+p.cy+'" r="15" fill="'+boltFill+'" stroke="'+boltStroke+'" stroke-width="4"/>' +
+      '<circle cx="'+p.cx+'" cy="'+p.cy+'" r="5" fill="#171c22"/>' +
+      '<text x="'+p.cx+'" y="'+(p.cy+4)+'" text-anchor="middle" fill="#fff" font-size="12" font-weight="bold">'+order[idx]+'</text>' +
+    '</g>';
+  });
+  svg+='</svg>';
+  var complete=mfgClampSetupComplete(ap);
+  var feedback=complete ?
+    '<p class="pill good">All four clamps are tight and the plate is ready to machine.</p>' :
+    '<p class="pill '+(cs.error?'bad':'warn')+'">'+(cs.error||('Next: tighten bolt '+(cs.progress.length+1)+' of 4.'))+'</p>';
+  return '<h4 class="section-title">Clamp the plate</h4>' +
+    '<p class="muted">Tap the four clamp bolts in the numbered diagonal sequence. Alternating corners seats the plate evenly.</p>' +
+    svg+feedback;
+}
 function mfgSetupTabHtml(tmpl, key){
   var ap = state.mfgActive;
   if(!ap || ap.tmplKey !== key) return '<p class="muted">Not yet on the machine.</p>';
@@ -2663,12 +2941,11 @@ function mfgSetupTabHtml(tmpl, key){
     var s = ap.plan.setups[idx];
     return '<li>Setup ' + sd.n + ': ' + WORKHOLDING[s.workholdingId].label + '</li>';
   }).join('');
-  return '<div class="mill-mini" id="mfg-mill" style="max-width:280px; margin:.6em auto;" aria-hidden="true">' +
-      buildPartVisualSVG(tmpl, 'stock', { stockId: ap.plan.stockId }) +
-    '</div>' +
-    '<p>Stock: ' + mfgStockOption(tmpl, ap.plan.stockId).label + '</p>' +
+  var clampsReady=mfgClampSetupComplete(ap);
+  return '<p>Stock: ' + mfgStockOption(tmpl, ap.plan.stockId).label + '</p>' +
     '<ul>' + setupsHtml + '</ul>' +
-    '<button type="button" class="primary" style="width:100%;" data-action="mfg-run-first-article" data-key="' + key + '">Load Material &amp; Run First Article</button>' +
+    mfgClampSetupHtml(tmpl,key,ap) +
+    '<button type="button" class="primary" style="width:100%;" data-action="mfg-run-first-article" data-key="' + key + '" '+(clampsReady?'':'disabled')+'>Run First Article</button>' +
     '<button type="button" style="width:100%; margin-top:.4em;" data-action="mfg-unload-setup" data-key="' + key + '">&larr; Unload &amp; Edit Plan</button>';
 }
 
@@ -2731,8 +3008,9 @@ function mfgInspectionTabHtml(tmpl, key){
 
 /* ---- Production tab ---- */
 function mfgProductionTabHtml(tmpl, key){
-  var ap = state.mfgActive;
-  if(!ap || ap.tmplKey !== key) return '<p class="muted">Not approved for production yet.</p>';
+  var ap = mfgRuntimeJob(key);
+  if(!ap) return '<p class="muted">Not approved for production yet.</p>';
+  var isActive=state.mfgActive===ap;
   var confLabel = mfgConfidenceLabel(ap.confidence);
   var maxBatch = mfgMaxBatch(ap.confidence);
   var remainingQty = Math.max(0, ap.qtyTarget - ap.goodCount);
@@ -2746,15 +3024,21 @@ function mfgProductionTabHtml(tmpl, key){
   '</div>';
 
   var runningHtml = '';
-  if(ap.stage === 'production' && !ap.paused){
+  if(!isActive){
+    var busyPart=state.mfgActive ? MFG_JOBS[state.mfgActive.tmplKey].part : '';
+    runningHtml='<p class="pill warn">Saved off machine. Progress is preserved.</p>' +
+      '<button type="button" class="primary" style="width:100%; margin-top:.5em;" data-action="mfg-resume-job" data-key="'+key+'" '+(mfgMachineBusy()?'disabled':'')+'>' +
+      (mfgMachineBusy() ? 'Machine Busy â€” '+busyPart : 'Load This Job on Machine') + '</button>';
+  } else if(ap.stage === 'production' && !ap.paused){
     var frac = clamp(ap.elapsedSim/Math.max(1,ap.totalSim),0,1);
+    var runLabel=(ap.partsPerCycle||1)===2 ? 'Running two nested nameplates in one cycle' : 'Running batch';
     runningHtml = mfgSpeedRowHtml() +
       '<div class="mill-mini" id="mfg-mill" style="max-width:280px; margin:.6em auto;" aria-hidden="true">' +
         machineAnimHtml(!ap.paused, !!state.upgrades.mistCoolant) +
         '<div class="chip-layer"></div>' +
       '</div>' +
       '<div class="bar-track"><div class="bar-fill" id="mfg-progress-fill" style="width:' + (frac*100) + '%"></div></div>' +
-      '<p class="muted" id="mfg-progress-text">Running batch &mdash; ' + ap.batchRemaining + ' part(s) left in this batch.</p>';
+      '<p class="muted" id="mfg-progress-text">'+runLabel+' &mdash; ' + ap.batchRemaining + ' part(s) left in this batch.</p>';
   } else if(ap.paused && ap.stopReason){
     var stopCls = ap.stopReason==='complete' ? 'good' : (ap.stopReason==='crash' || ap.stopReason==='tool') ? 'bad' : 'warn';
     var crashBadge = ap.stopReason==='crash' ? '<div class="crash-badge">' + mfgBrokenToolBadge() + '</div>' : '';
@@ -2762,19 +3046,28 @@ function mfgProductionTabHtml(tmpl, key){
   }
 
   var batchHtml = '';
-  if(remainingQty > 0 && (ap.stage === 'approved' || (ap.stage === 'production' && ap.paused))){
+  if(isActive && remainingQty > 0 && (ap.stage === 'approved' || (ap.stage === 'production' && ap.paused))){
     batchHtml = '<h4 class="section-title">Run a Batch</h4><p class="muted" style="font-size:.82rem;">Max unattended batch at ' + confLabel + ' confidence: ' + (maxBatch>999?'no limit':maxBatch) + '.</p>' +
       '<div class="row">' + [1,2,5,10].filter(function(n){return n<=remainingQty;}).map(function(n){
         return '<button type="button" data-action="mfg-run-batch" data-key="' + key + '" data-size="' + n + '" ' + (n>maxBatch?'disabled':'') + '>Run ' + n + '</button>';
-      }).join('') + '<button type="button" data-action="mfg-run-batch" data-key="' + key + '" data-size="remaining" ' + (remainingQty>maxBatch?'disabled':'') + '>Run Remaining (' + remainingQty + ')</button></div>';
+      }).join('') + '<button type="button" data-action="mfg-run-batch" data-key="' + key + '" data-size="remaining" ' + (remainingQty>maxBatch?'disabled':'') + '>Run Remaining (' + remainingQty + ')</button></div>' +
+      (key==='nameplate' && remainingQty>=2 ?
+        '<button type="button" style="width:100%; margin-top:.5em; border-color:#47b8ff;" data-action="mfg-run-nested" data-key="'+key+'" '+(maxBatch<2?'disabled':'')+'>Run 2 Nested â€” One Shared Cycle</button>' +
+        '<p class="muted" style="font-size:.78rem;">Two nameplates share one larger setup, taking about 45% longer than a single cycle instead of twice as long.</p>' : '');
   }
 
   var shipHtml = '';
-  if(remainingQty <= 0 || (ap.blanksInStock<=0) || state.tools[tmpl.toolKey].condition<=3){
+  if(isActive && (remainingQty <= 0 || (ap.blanksInStock<=0) || state.tools[tmpl.toolKey].condition<=3)){
     shipHtml = '<button type="button" class="primary" style="width:100%; margin-top:.8em;" data-action="mfg-ship" data-key="' + key + '">Complete &amp; Ship Job</button>';
   }
 
-  return statsHtml + runningHtml + batchHtml + shipHtml;
+  var switchHtml='';
+  if(isActive && remainingQty>0 && (ap.stage==='approved' || (ap.stage==='production' && ap.paused))){
+    switchHtml='<button type="button" style="width:100%; margin-top:.8em;" data-action="mfg-switch-job" data-key="'+key+'">Save Progress &amp; Switch Part</button>' +
+      '<p class="muted" style="font-size:.78rem;">The setup, inspection approval, good parts, and scrap count will be waiting when you return.</p>';
+  }
+
+  return statsHtml + runningHtml + batchHtml + switchHtml + shipHtml;
 }
 
 /* ============================== UTIL ============================== */
@@ -2828,6 +3121,7 @@ function defaultState(){
     activeProduction: null,
     mfgPrep: {},
     mfgActive: null,
+    mfgParked: {},
     mfgBoard: ['nameplate','bottleOpener','lBracket'],
     mfgLastTickAt: Date.now(),
     stats: {
@@ -2867,6 +3161,7 @@ function loadGame(){
     if(!isNum(data.cash)) data.cash = base.cash;
     if(!isNum(data.reputation)) data.reputation = base.reputation;
     if(!data.mfgPrep || typeof data.mfgPrep !== 'object') data.mfgPrep = {};
+    if(!data.mfgParked || typeof data.mfgParked !== 'object') data.mfgParked = {};
     if(!Array.isArray(data.mfgBoard)) data.mfgBoard = base.mfgBoard.slice();
     if(data.mfgActive && typeof data.mfgActive !== 'object') data.mfgActive = null;
     if(!isNum(data.mfgLastTickAt)) data.mfgLastTickAt = Date.now();
@@ -2875,6 +3170,14 @@ function loadGame(){
       if(pr && typeof pr === 'object') pr.scores = Object.assign(mfgDefaultScores(), pr.scores||{});
     }
     if(data.mfgActive) data.mfgActive.scores = Object.assign(mfgDefaultScores(), data.mfgActive.scores||{});
+    for(var parkedKey in data.mfgParked){
+      var parkedJob = data.mfgParked[parkedKey];
+      if(!MFG_JOBS[parkedKey] || !parkedJob || typeof parkedJob !== 'object'){
+        delete data.mfgParked[parkedKey];
+      } else {
+        parkedJob.scores = Object.assign(mfgDefaultScores(), parkedJob.scores||{});
+      }
+    }
     if(data.mode !== 'guided' && data.mode !== 'machinist') data.mode = base.mode;
     // v3: the starter part lineup changed (Name Plate / Bottle Opener / L Bracket).
     // Drop any prep/active/board references to removed part keys so nothing points
@@ -2914,6 +3217,30 @@ function migrateSave(data){
     if(oldBracketPrep.stage !== 'blueprint') oldBracketPrep.stage = 'plan';
     oldBracketPrep.programTimeRemaining = 0;
     oldBracketPrep.programTotalSeconds = 0;
+  }
+  if(fromVersion < 5 && data.mfgPrep && data.mfgPrep.lBracket){
+    /* v5 replaces the fixed contour-tracing exercise with player-selected
+       holding tabs. Existing shops start with the recommended four-tab layout
+       so a save made before this minigame remains immediately playable. */
+    var bracketPrepV5 = data.mfgPrep.lBracket;
+    bracketPrepV5.plan = bracketPrepV5.plan || mfgComputeDefaultPlan(MFG_JOBS.lBracket);
+    if(!Array.isArray(bracketPrepV5.plan.tabPlacements)){
+      bracketPrepV5.plan.tabPlacements = MFG_JOBS.lBracket.recommendedTabPlacements.slice();
+    }
+    bracketPrepV5.scores = Object.assign(mfgDefaultScores(), bracketPrepV5.scores || {});
+    bracketPrepV5.scores.tabPlacementScore = mfgEvaluateTabPlacement(
+      MFG_JOBS.lBracket,
+      bracketPrepV5.plan.tabPlacements
+    ).score;
+  }
+  if(fromVersion < 6){
+    /* v6 adds resumable, off-machine manufacturing jobs and the interactive
+       four-bolt clamp check. Both fields are additive, so older saves keep
+       every active job and simply begin the new setup check when needed. */
+    if(!data.mfgParked || typeof data.mfgParked !== 'object') data.mfgParked = {};
+    if(data.mfgActive && data.mfgActive.stage === 'setup' && !data.mfgActive.clampSetup){
+      data.mfgActive.clampSetup = { sequence:[0,3,1,2], progress:[], error:null };
+    }
   }
   data.version = SAVE_VERSION;
   return data;
@@ -3312,11 +3639,11 @@ function finishEvent(success, silent){
     ap.metrics.dimensionalRisk = clamp(ap.metrics.dimensionalRisk + 14, 0, 100);
     ap.metrics.chatterRisk = clamp(ap.metrics.chatterRisk + 8, 0, 100);
     if(ev && ev.type === 'coolant'){ ap.metrics.heatRisk = clamp(ap.metrics.heatRisk+16,0,100); state.machine.chipBuildup = clamp(state.machine.chipBuildup+15,0,100); }
-    toast('Event not resolved cleanly — risk increased.', 'bad');
+    toast('Event not resolved cleanly â€” risk increased.', 'bad');
   } else if(!silent){
     ap.metrics.dimensionalRisk = clamp(ap.metrics.dimensionalRisk - 6, 0, 100);
     if(ev && ev.type === 'coolant'){ state.machine.chipBuildup = clamp(state.machine.chipBuildup-20,0,100); }
-    toast('Handled it — production continues.', 'good');
+    toast('Handled it â€” production continues.', 'good');
   }
   ap.eventsResolved++;
   ap.pendingEvent = null;
@@ -3356,7 +3683,7 @@ function finishProduction(){
     late: late, deadlineElapsedSec: deadlineElapsedSec
   };
   ap.late = late;
-  toast('Production complete — inspect your parts.', 'good');
+  toast('Production complete â€” inspect your parts.', 'good');
   render();
 }
 
@@ -3764,14 +4091,14 @@ function refreshSetupPreview(){
   if(state.mode==='guided'){
     var tipEl = document.getElementById('preset-tip');
     if(tipEl){
-      var tips = { conservative: 'Slower, safer.', balanced: 'Recommended — safe and steady.', aggressive: 'Faster, riskier.' };
+      var tips = { conservative: 'Slower, safer.', balanced: 'Recommended â€” safe and steady.', aggressive: 'Faster, riskier.' };
       tipEl.textContent = tips[currentPresetChoice];
     }
     var compositeRisk = Math.max(m.heatRisk, m.chatterRisk, m.dimensionalRisk);
     var riskInfo = riskLabel(compositeRisk);
     var shortWarn = '';
-    if(m.machineLoadPct > 100) shortWarn = 'Heavy cut — higher chance of stalls or damage.';
-    else if(compositeRisk >= 70) shortWarn = 'High risk — expect more scrap.';
+    if(m.machineLoadPct > 100) shortWarn = 'Heavy cut â€” higher chance of stalls or damage.';
+    else if(compositeRisk >= 70) shortWarn = 'High risk â€” expect more scrap.';
     else if(compositeRisk >= 40) shortWarn = 'Moderate risk.';
     host.innerHTML =
       '<div class="stat-grid">' +
@@ -3784,9 +4111,9 @@ function refreshSetupPreview(){
   }
 
   var warnings = [];
-  if(m.machineLoadPct > 100) warnings.push('Machine load is very high — increased risk of stalls and machine wear.');
-  if(m.chatterRisk > 65) warnings.push('High chatter risk — expect a rougher finish and possible dimensional issues.');
-  if(m.heatRisk > 65) warnings.push('High heat risk — consider mist lubrication or a lighter cut.');
+  if(m.machineLoadPct > 100) warnings.push('Machine load is very high â€” increased risk of stalls and machine wear.');
+  if(m.chatterRisk > 65) warnings.push('High chatter risk â€” expect a rougher finish and possible dimensional issues.');
+  if(m.heatRisk > 65) warnings.push('High heat risk â€” consider mist lubrication or a lighter cut.');
   if(m.chipLoadDeviation > 0.4) warnings.push('Chip load is far outside the recommended range for this material.');
 
   host.innerHTML =
@@ -4205,10 +4532,10 @@ function renderProduction(){
   var toolCond = state.tools[ap.toolKeyUsed].condition;
 
   var warnings = [];
-  if(m.machineLoadPct>105) warnings.push('Machine is overloaded — condition dropping faster.');
-  if(toolCond<25) warnings.push('Tool is nearly worn out — consider replacing it after this job.');
+  if(m.machineLoadPct>105) warnings.push('Machine is overloaded â€” condition dropping faster.');
+  if(toolCond<25) warnings.push('Tool is nearly worn out â€” consider replacing it after this job.');
   if(deadlineRemain<20 && deadlineRemain>0) warnings.push('Deadline approaching soon!');
-  if(deadlineRemain<=0) warnings.push('Deadline passed — this job will ship late.');
+  if(deadlineRemain<=0) warnings.push('Deadline passed â€” this job will ship late.');
 
   var qualityScore = clamp(100 - m.dimensionalRisk*0.5 - Math.max(0,50-m.finishScore)*0.5, 0, 100);
   var qualityLabel = qualityScore>=75?'Good':qualityScore>=50?'Fair':'At risk';
@@ -4267,11 +4594,11 @@ function eventHtml(ev){
     var nums=[1,2,3,4,5,6];
     return '<div class="card event-modal" style="margin-top:1em; background:var(--panel2);"><h3>Loose Workholding!</h3>' +
       '<p class="muted">Tighten the bolts in the highlighted order before time runs out.</p>' +
-      '<p>Order so far: ' + (ev.progress.length ? ev.progress.join(' → ') : '(none yet)') + ' &mdash; next: <b>' + (ev.sequence[0]===ev.sequence[ev.progress.length]?'':'') + (ev.progress.length<ev.sequence.length?'bolt highlighted below':'') + '</b></p>' +
+      '<p>Order so far: ' + (ev.progress.length ? ev.progress.join(' â†’ ') : '(none yet)') + ' &mdash; next: <b>' + (ev.sequence[0]===ev.sequence[ev.progress.length]?'':'') + (ev.progress.length<ev.sequence.length?'bolt highlighted below':'') + '</b></p>' +
       '<div class="bolt-grid">' + nums.map(function(n){
         var isNext = ev.sequence[ev.progress.length]===n;
         var done = ev.progress.indexOf(n)!==-1;
-        return '<button type="button" class="bolt-btn' + (done?' done':'') + '" style="' + (isNext&&!done?'outline:3px solid var(--accent);':'') + '" data-action="event-bolt" data-num="' + n + '" ' + (done?'disabled':'') + '>' + n + (done?' ✓':'') + '</button>';
+        return '<button type="button" class="bolt-btn' + (done?' done':'') + '" style="' + (isNext&&!done?'outline:3px solid var(--accent);':'') + '" data-action="event-bolt" data-num="' + n + '" ' + (done?'disabled':'') + '>' + n + (done?' âœ“':'') + '</button>';
       }).join('') + '</div>' +
     '</div>';
   }
@@ -4309,8 +4636,8 @@ function renderInspectionPanel(ap){
   var summary = computeJobSummary(ap);
   return '<h3 style="margin-top:1em;">Inspection Results</h3>' +
     '<div class="stat-grid">' +
-      statBox('Required tolerance', '±' + ap.job.toleranceIn + '"') +
-      statBox('Measured deviation', '±' + res.deviationIn + '"', res.deviationIn>ap.job.toleranceIn?'bad':'good') +
+      statBox('Required tolerance', 'Â±' + ap.job.toleranceIn + '"') +
+      statBox('Measured deviation', 'Â±' + res.deviationIn + '"', res.deviationIn>ap.job.toleranceIn?'bad':'good') +
       statBox('Finish result', res.finishLabel) +
       statBox('Accepted', res.accepted, 'good') +
       statBox('Reworkable', res.rework, res.rework>0?'warn':'') +
@@ -4402,7 +4729,7 @@ function milestoneModalHtml(){
     '<p class="muted">Hit all five milestones to unlock your first commercial shop chapter.</p>' +
     '<ul style="list-style:none; padding:0;">' + st.map(function(s){
       return '<li class="row" style="justify-content:space-between; padding:.4em 0; border-bottom:1px solid var(--border);">' +
-        '<span>' + (s.done?'✅ ':'⬜ ') + s.label + '</span>' +
+        '<span>' + (s.done?'âœ… ':'â¬œ ') + s.label + '</span>' +
         '<span class="muted">' + (s.money?fmtMoney(Math.min(s.cur,s.target))+' / '+fmtMoney(s.target):Math.min(s.cur,s.target)+' / '+s.target) + '</span></li>';
     }).join('') + '</ul>';
 }
@@ -4629,7 +4956,7 @@ function startNewGame(){
 
 function continueGame(){
   var loaded = loadGame();
-  if(!loaded){ toast('No saved shop found — starting a new one.', 'bad'); startNewGame(); return; }
+  if(!loaded){ toast('No saved shop found â€” starting a new one.', 'bad'); startNewGame(); return; }
   state = loaded;
   var elapsedSec = Math.max(0, (Date.now() - (state.mfgLastTickAt || Date.now()))/1000);
   var offlineReport = mfgSimulateOffline(elapsedSec);
@@ -4941,6 +5268,31 @@ document.addEventListener('click', function(e){
       mfgStockHintOpen = !mfgStockHintOpen;
       renderMfgModalContent();
       break;
+    case 'mfg-tab-toggle': {
+      var tabKey=el.getAttribute('data-key');
+      var tabPrep=state.mfgPrep[tabKey];
+      if(tabPrep && tabPrep.stage==='plan'){
+        var tabIdx=parseInt(el.getAttribute('data-tab-idx'),10);
+        var tabSelected=(tabPrep.plan.tabPlacements||[]).slice();
+        var tabAt=tabSelected.indexOf(tabIdx);
+        if(tabAt===-1) tabSelected.push(tabIdx); else tabSelected.splice(tabAt,1);
+        mfgCommitTabPlacements(tabKey,tabSelected);
+      }
+      renderMfgModalContent();
+      break;
+    }
+    case 'mfg-tab-best': {
+      var bestTabKey=el.getAttribute('data-key');
+      mfgCommitTabPlacements(bestTabKey,MFG_JOBS[bestTabKey].recommendedTabPlacements||[]);
+      renderMfgModalContent();
+      break;
+    }
+    case 'mfg-tab-clear': {
+      var clearTabKey=el.getAttribute('data-key');
+      mfgCommitTabPlacements(clearTabKey,[]);
+      renderMfgModalContent();
+      break;
+    }
     case 'mfg-orientation-choice': {
       var orKey = el.getAttribute('data-key');
       var orPrep = state.mfgPrep[orKey];
@@ -5041,6 +5393,16 @@ document.addEventListener('click', function(e){
         }
       });
       break;
+    case 'mfg-clamp-bolt':
+      withLock(function(){
+        var clampKey=el.getAttribute('data-key');
+        var boltIdx=parseInt(el.getAttribute('data-bolt-idx'),10);
+        var clampResult=mfgTightenClampBolt(clampKey,boltIdx);
+        renderMfgModalContent();
+        if(clampResult.complete) toast('All four clamps are tight.', 'good');
+        else if(clampResult.reset) toast('Use the numbered cross pattern.', 'bad');
+      });
+      break;
     case 'mfg-run-first-article':
       withLock(function(){
         var fk = el.getAttribute('data-key');
@@ -5081,6 +5443,34 @@ document.addEventListener('click', function(e){
         var sizeAttr = el.getAttribute('data-size');
         var size = sizeAttr === 'remaining' ? 'remaining' : parseInt(sizeAttr, 10);
         if(mfgStartBatch(size)){ renderMfgModalContent(); toast('Batch started.', 'good'); }
+      });
+      break;
+    case 'mfg-run-nested':
+      withLock(function(){
+        if(mfgStartBatch(2,2)){ renderMfgModalContent(); toast('Two-up nameplate nest started.', 'good'); }
+      });
+      break;
+    case 'mfg-switch-job':
+      withLock(function(){
+        if(mfgParkActiveJob()){
+          closeModal();
+          renderBlueprintJobs();
+          render();
+          toast('Progress saved. Choose any other part.', 'good');
+        }
+      });
+      break;
+    case 'mfg-resume-job':
+      withLock(function(){
+        var resumeKey=el.getAttribute('data-key');
+        if(mfgResumeParkedJob(resumeKey)){
+          mfgActiveTab='production';
+          renderMfgModalContent();
+          renderBlueprintJobs();
+          toast('Job loaded with all progress restored.', 'good');
+        } else {
+          toast('Unload the current part first.', 'bad');
+        }
       });
       break;
     case 'mfg-ship':
