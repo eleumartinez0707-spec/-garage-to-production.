@@ -64,16 +64,12 @@ label{ display:block; margin:.5em 0 .2em; font-size:.9rem; color:var(--text-dim)
 /* ---------- START SCREEN ---------- */
 #start-screen{
   min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center;
-  padding:clamp(.7em,2vw,1.4em); text-align:center; position:relative; overflow-x:hidden;
-  background:
-    linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px),
-    radial-gradient(ellipse at 50% -15%,#333842 0%,#171b21 58%,#0d1014 100%);
-  background-size:32px 32px,32px 32px,auto;
+  padding:1.2em; text-align:center; position:relative; overflow:hidden;
+  background:radial-gradient(ellipse at 50% -10%, #2a2116 0%, var(--bg) 60%);
 }
-.title-logo-wrap{ margin:0; line-height:0; }
-.title-logo{ width:min(88vw,660px); height:auto; image-rendering:auto; filter:drop-shadow(0 9px 0 rgba(0,0,0,.48)); }
-#start-screen .subtitle{ color:#d0d6df; margin:.35em 0 .8em; font-family:"Courier New",monospace; letter-spacing:.08em; text-transform:uppercase; text-shadow:0 2px #000; }
+.title-logo-wrap{ margin:0 0 .2em; line-height:0; }
+.title-logo{ width:min(78vw,340px); height:auto; image-rendering:auto; filter:drop-shadow(0 5px 0 rgba(0,0,0,.4)); }
+#start-screen .subtitle{ color:var(--text-dim); margin:.6em 0 1em; }
 .mill-stage{ width:min(94vw,440px); position:relative; margin:0 auto 1em; pointer-events:none; overflow:hidden; border-radius:8px; border:2px solid #000; background:#0d0d0c; }
 .mill-stage .shop-scene-img{ width:100%; height:auto; display:block; image-rendering:pixelated; }
 .mill-scene{ position:absolute; inset:0; }
@@ -90,43 +86,29 @@ label{ display:block; margin:.5em 0 .2em; font-size:.9rem; color:var(--text-dim)
   60%{ opacity:1; }
   100%{ opacity:0; transform:var(--chip-end) rotate(90deg) scale(.7); }
 }
-.start-control-row{ display:flex; align-items:center; justify-content:center; gap:clamp(.45em,1.5vw,1em); width:min(96vw,1000px); }
-.mode-select{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:clamp(.45em,1.5vw,1em); margin:0; width:min(80vw,700px); }
+.start-control-row{ display:contents; }
+.mode-select{ display:flex; gap:.7em; justify-content:center; margin:.6em 0; flex-wrap:wrap; }
 .mode-btn{
-  min-width:0; aspect-ratio:1.49/1; padding:0; border:0; border-radius:0; line-height:0;
-  background:transparent center/contain no-repeat; color:transparent;
-  box-shadow:none; transition:transform .08s ease,filter .08s ease;
+  width:min(42vw,250px); min-width:150px; aspect-ratio:1.58/1;
+  padding:0; border:0; border-radius:0; line-height:0;
+  background:transparent center/contain no-repeat; color:transparent; box-shadow:none;
+  transition:transform .08s ease,filter .08s ease;
 }
 .mode-btn-clean{ background-image:url("assets/title/clean-hands.webp"); }
 .mode-btn-shop{ background-image:url("assets/title/shop-hands.webp"); }
 .mode-btn:hover{ filter:brightness(1.12); }
-.mode-btn:active{ transform:translateY(4px); }
-.mode-btn[aria-pressed="true"]{ filter:brightness(1.14) drop-shadow(0 0 7px #ffd03b); transform:translateY(-2px); }
+.mode-btn:active{ transform:translateY(2px); }
+.mode-btn[aria-pressed="true"]{ filter:brightness(1.12) drop-shadow(0 0 5px var(--accent)); }
 .start-settings-btn{
-  flex:0 1 235px; width:min(24vw,235px); aspect-ratio:2.62/1; min-height:0; padding:0; border:0; border-radius:0;
+  order:99; margin-top:1em; width:190px; aspect-ratio:2.48/1; min-height:0; padding:0; border:0; border-radius:0;
   background:transparent url("assets/title/settings.webp") center/contain no-repeat; color:transparent; box-shadow:none;
 }
 .start-settings-btn:hover{ filter:brightness(1.15); }
-.start-status-strip{ display:flex; justify-content:center; align-items:center; gap:clamp(.35em,1.2vw,.8em); width:min(94vw,820px); margin:.8em auto .15em; }
-.start-status-strip img{ display:block; max-height:72px; max-width:22%; width:auto; object-fit:contain; filter:drop-shadow(0 5px 0 rgba(0,0,0,.38)); }
-.start-status-strip .status-wide{ max-width:29%; }
-#start-screen .mode-desc{ max-width:650px; color:#c9d0da; font-size:.84rem; min-height:1.4em; margin:.55em 0 .2em; }
-.start-actions{ display:flex; gap:.7em; flex-wrap:wrap; justify-content:center; margin-top:.45em; }
-.start-actions button{ min-width:190px; font-size:1rem; font-weight:800; text-transform:uppercase; letter-spacing:.04em; border:3px solid #0a0c0f; box-shadow:0 4px 0 #050607; }
-#continue-hint{ margin-top:.45em !important; }
-@media (max-width:640px){
-  #start-screen{ justify-content:flex-start; padding-top:.65em; }
-  .title-logo{ width:min(94vw,520px); }
-  #start-screen .subtitle{ font-size:.72rem; }
-  .start-control-row{ flex-direction:column; }
-  .mode-select{ width:min(96vw,570px); gap:.25em; }
-  .start-settings-btn{ width:180px; flex-basis:auto; }
-  .start-status-strip{ gap:.15em; margin-top:.45em; }
-  .start-status-strip img{ max-height:48px; }
-  .start-actions{ gap:.4em; }
-  .start-actions button{ min-width:145px; font-size:.82rem; min-height:40px; }
-  #start-screen .mode-desc{ font-size:.75rem; min-height:2.2em; }
-}
+.start-status-strip{ display:none; }
+#start-screen .mode-desc{ max-width:440px; color:var(--text-dim); font-size:.88rem; min-height:2.4em; }
+.start-actions{ display:flex; gap:.7em; flex-wrap:wrap; justify-content:center; margin-top:.8em; }
+.start-actions button{ min-width:200px; font-size:1.05rem; }
+
 
 
 /* ---------- APP LAYOUT ---------- */
@@ -298,6 +280,10 @@ body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behav
   <h1 class="title-logo-wrap"><img class="title-logo" src="assets/title/making-chips-logo.webp" alt="Making Chips"></h1>
   <p class="subtitle">Program it. Machine it. Send it.</p>
 
+  <div class="mill-stage" aria-hidden="true">
+    <div id="mill-stage-svg" role="img" aria-label="Pixel-art illustration of a desktop CNC mill enclosure on a workbench in a machine shop"></div>
+  </div>
+
   <div class="start-control-row">
     <div class="mode-select" role="group" aria-label="Choose a play mode">
       <button type="button" class="mode-btn mode-btn-clean" data-action="set-start-mode" data-mode="guided" aria-pressed="true" aria-label="Clean Hands — Beginner guided mode"></button>
@@ -321,6 +307,7 @@ body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behav
   </div>
   <p class="muted" id="continue-hint" style="margin-top:.6em; font-size:.8rem;">No saved shop found yet.</p>
 </div>
+
 
 
 <div id="app" class="hidden">
