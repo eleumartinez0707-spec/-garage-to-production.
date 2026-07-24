@@ -1798,7 +1798,11 @@ function renderMfgModalContent(){
 
   var tabsHtml = '<div id="mfg-tabs" role="tablist">' +
     MFG_TABS.map(function(t, i){
-      var locked = i > unlockedIdx;
+      // The next step after reviewing a blueprint should be directly
+      // clickable. Otherwise Process Plan looks like a broken control until
+      // the separate button at the bottom of the blueprint is discovered.
+      var isBlueprintNext = stageKey === 'blueprint' && t.key === 'plan';
+      var locked = i > unlockedIdx && !isBlueprintNext;
       return '<button type="button" data-action="mfg-tab" data-tab="' + t.key + '" aria-pressed="' + (mfgActiveTab===t.key) + '" ' + (locked?'disabled':'') + '>' + t.label + '</button>';
     }).join('') + '</div>';
 
@@ -4801,6 +4805,10 @@ document.addEventListener('click', function(e){
       var wantTab = el.getAttribute('data-tab');
       var idxWanted = MFG_TABS.findIndex(function(t){ return t.key === wantTab; });
       var curKey = openMfgTmplKey;
+      if(mfgCurrentStageKey(curKey) === 'blueprint' && wantTab === 'plan'){
+        mfgAdvancePrepStage(curKey, 'plan');
+        renderBlueprintJobs();
+      }
       var curUnlocked = MFG_STAGE_TAB_INDEX[mfgCurrentStageKey(curKey)] || 0;
       if(idxWanted <= curUnlocked){ mfgActiveTab = wantTab; renderMfgModalContent(); }
       break;
