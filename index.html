@@ -1183,8 +1183,38 @@ function mfgComputeQuality(tmpl, plan, program, machineCondition, toolCondition,
   score -= avgRisk*60;
   score -= (100-toolCondition)*0.15;
   score -= (100-machineCondition)*0.1;
+  // A crooked/incomplete contour trace means CAM is following a sloppy
+  // toolpath -- that shows up as real dimensional/finish risk, not just a
+  // participation score. 0.7 (the untouched baseline) is quality-neutral;
+  // below that increasingly hurts, above it gives a small bonus.
+  if(plan.traceResults){
+    var traceScore = mfgCombinedTraceScore(tmpl.id.replace('mfg_',''), plan.traceResults);
+    score -= (0.7 - traceScore) * 40;
+  }
   score += (bonus || 0);
   return clamp(Math.round(score), 2, 100);
+}
+/* Wrong or risky workholding isn't just a quality-score ding -- it's a real
+   crash risk: an under-clamped part can lift into the cutter, or the wrong
+   jaws can let the tool dig into the fixture. Each 'bad' warning (risky
+   workholding, undersized stock) rolls a real chance per cycle; 'warn'
+   (non-recommended but not flagged risky) rolls a smaller one. Returns a
+   dramatic message on a crash, or null. */
+function mfgCrashRoll(tmpl, plan){
+  var warnings = evaluateMfgPlan(tmpl, plan);
+  var bad = warnings.filter(function(w){ return w.level === 'bad'; }).length;
+  var warn = warnings.filter(function(w){ return w.level === 'warn'; }).length;
+  var chance = bad*0.16 + warn*0.05;
+  if(chance <= 0 || Math.random() >= chance) return null;
+  var messages = bad > 0 ? [
+    'CRASH — the part shifted mid-cut and the endmill snapped.',
+    'CRASH — the cutter dug into the vise jaws. Tool destroyed.',
+    'CRASH — weak clamping let the part lift into the spindle. Endmill broken.'
+  ] : [
+    'CRASH — marginal workholding let the part walk, and the tool couldn’t take it.',
+    'CRASH — chatter from the loose setup snapped the cutter.'
+  ];
+  return messages[Math.floor(Math.random()*messages.length)];
 }
 function mfgRunInspectionDims(tmpl, qualityScore){
   var devScale = (100-qualityScore)/100;
@@ -1296,8 +1326,21 @@ function mfgFinishCycle(){
   var tmpl = MFG_JOBS[ap.tmplKey];
   var toolCond = state.tools[tmpl.toolKey].condition;
   var quality = mfgComputeQuality(tmpl, ap.plan, ap.program, state.machine.condition, toolCond, ap._correctionBoost);
+  var crashMsg = mfgCrashRoll(tmpl, ap.plan);
 
   if(ap.stage === 'firstArticle'){
+    if(crashMsg){
+      ap.lastInspection = { dims: [], issues: [crashMsg], pass: false, quality: 0, crashed: true };
+      ap.stage = 'inspecting';
+      ap.confidenceScore = clamp(ap.confidenceScore - 40, 0, 100);
+      ap.confidence = mfgConfidenceFromScore(ap.confidenceScore);
+      state.tools[tmpl.toolKey].condition = clamp(state.tools[tmpl.toolKey].condition - 70, 0, 100);
+      state.machine.condition = clamp(state.machine.condition - 3, 0, 100);
+      toast(crashMsg, 'bad');
+      scheduleAutosave();
+      render();
+      return;
+    }
     var dims = mfgRunInspectionDims(tmpl, quality);
     var issues = mfgSurfaceIssues(quality);
     var pass = dims.every(function(d){ return d.pass; }) && issues.length === 0;
@@ -1309,6 +1352,23 @@ function mfgFinishCycle(){
     state.tools[tmpl.toolKey].condition = clamp(state.tools[tmpl.toolKey].condition - wear, 0, 100);
     state.machine.condition = clamp(state.machine.condition - 1.2, 0, 100);
   } else if(ap.stage === 'production'){
+    if(crashMsg){
+      ap.scrapCount++;
+      ap.economics.scrapCost += Math.round(tmpl.materialCostBase);
+      ap.blanksInStock = Math.max(0, ap.blanksInStock - 1);
+      state.tools[tmpl.toolKey].condition = clamp(state.tools[tmpl.toolKey].condition - 70, 0, 100);
+      state.machine.condition = clamp(state.machine.condition - 3, 0, 100);
+      ap.batchRemaining = Math.max(0, ap.batchRemaining - 1);
+      ap.confidenceScore = clamp(ap.confidenceScore - 25, 0, 100);
+      ap.confidence = mfgConfidenceFromScore(ap.confidenceScore);
+      var toolDeadNow = state.tools[tmpl.toolKey].condition <= 3;
+      ap.paused = true;
+      ap.stopReason = toolDeadNow ? 'tool' : 'crash';
+      toast(crashMsg, 'bad');
+      scheduleAutosave();
+      render();
+      return;
+    }
     var pass2 = Math.random()*100 < quality;
     if(pass2) ap.goodCount++; else { ap.scrapCount++; ap.economics.scrapCost += Math.round(tmpl.materialCostBase); }
     ap.blanksInStock = Math.max(0, ap.blanksInStock - 1);
@@ -1456,6 +1516,20 @@ function mfgSimulateOffline(elapsedRealSec){
   var toolCond = state.tools[tmpl.toolKey].condition;
   var guard = 0;
   while(guard++ < 20000){
+    var crashMsgOff = mfgCrashRoll(tmpl, ap.plan);
+    if(crashMsgOff){
+      ap.scrapCount++; report.scrapMade++;
+      ap.economics.scrapCost += Math.round(tmpl.materialCostBase);
+      ap.blanksInStock = Math.max(0, ap.blanksInStock - 1); report.blanksUsed++;
+      toolCond = clamp(toolCond - 70, 0, 100);
+      state.machine.condition = clamp(state.machine.condition - 3, 0, 100);
+      ap.batchRemaining = Math.max(0, ap.batchRemaining - 1);
+      ap.paused = true;
+      ap.stopReason = toolCond <= 3 ? 'tool' : 'crash';
+      report.stopped = ap.stopReason;
+      report.crashMessage = crashMsgOff;
+      break;
+    }
     var quality = mfgComputeQuality(tmpl, ap.plan, ap.program, state.machine.condition, toolCond, ap._correctionBoost);
     var pass = Math.random()*100 < quality;
     if(pass){ ap.goodCount++; report.goodMade++; } else { ap.scrapCount++; report.scrapMade++; }
@@ -1484,7 +1558,8 @@ function mfgStopReasonText(reason){
     complete:'the job quantity was completed',
     tool:'the end mill reached its wear limit',
     material:'material ran out',
-    batch:'the selected batch finished'
+    batch:'the selected batch finished',
+    crash:'a crash from the current setup destroyed the tool'
   }[reason] || 'production paused';
 }
 
@@ -2469,7 +2544,8 @@ function mfgProductionTabHtml(tmpl, key){
       '<div class="bar-track"><div class="bar-fill" id="mfg-progress-fill" style="width:' + (frac*100) + '%"></div></div>' +
       '<p class="muted" id="mfg-progress-text">Running batch &mdash; ' + ap.batchRemaining + ' part(s) left in this batch.</p>';
   } else if(ap.paused && ap.stopReason){
-    runningHtml = '<p class="pill ' + (ap.stopReason==='complete'?'good':'warn') + '">Stopped: ' + mfgStopReasonText(ap.stopReason) + '.</p>';
+    var stopCls = ap.stopReason==='complete' ? 'good' : (ap.stopReason==='crash' || ap.stopReason==='tool') ? 'bad' : 'warn';
+    runningHtml = '<p class="pill ' + stopCls + '">Stopped: ' + mfgStopReasonText(ap.stopReason) + '.</p>';
   }
 
   var batchHtml = '';
@@ -3249,7 +3325,7 @@ function closeModal(){
 
 function render(){
   if(!state) return;
-  try{ window.__debugGame = state; window.__debugBuildMillScene = buildMillScene; window.__debugBuildPartVisual = buildPartVisualSVG; window.__debugMfgJobs = MFG_JOBS; }catch(e){}
+  try{ window.__debugGame = state; window.__debugBuildMillScene = buildMillScene; window.__debugBuildPartVisual = buildPartVisualSVG; window.__debugMfgJobs = MFG_JOBS; window.__debugCrashRoll = mfgCrashRoll; window.__debugEvaluatePlan = evaluateMfgPlan; window.__debugComputeQuality = mfgComputeQuality; }catch(e){}
   document.getElementById('stat-cash').textContent = fmtMoney(state.cash);
   document.getElementById('stat-rep').textContent = Math.round(state.reputation);
   document.getElementById('stat-shop').textContent = state.shopLevel;
