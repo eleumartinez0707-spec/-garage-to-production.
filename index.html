@@ -1999,20 +1999,57 @@ function mfgFeatureAssignmentHtml(tmpl, key, editable){
 
 /* ============================================================
    MINIGAME: CONTOUR TRACE
-   Trace the L-step contour with a pointer to define the CAM
-   contour for the rough/finish passes (this represents selecting
-   the toolpath geometry, not manually driving the cutter).
+   Trace a part's outline with a pointer to define the CAM contour
+   for the rough/finish passes (this represents selecting the
+   toolpath geometry, not manually driving the cutter). Each part
+   can have more than one pass -- e.g. the Name Plate traces its
+   outer border, then a second pass along the engraved name.
+   'front' contours are in the length x thickness plane (matches
+   mfgFinishedProfile); 'top' contours are in the length x width
+   plan-view plane (matches tmpl.planOutline / hole x,y coords).
    ============================================================ */
 
+function mfgLBracketFullOutline(tmpl){
+  var pts = mfgFinishedProfile(tmpl).slice();
+  pts.push(pts[0]);
+  return pts;
+}
 var MFG_TRACE_CONTOURS = {
-  lBracket: { featureId:'c1', points:[[25,50],[25,20],[80,20]] }
+  lBracket: [
+    { id:'contour', label:'the full bracket outline', plane:'front', points: function(tmpl){ return mfgLBracketFullOutline(tmpl); } }
+  ],
+  bottleOpener: [
+    { id:'contour', label:'the outer profile', plane:'top', points: function(tmpl){ return tmpl.planOutline.concat([tmpl.planOutline[0]]); } }
+  ],
+  nameplate: [
+    { id:'contour', label:'the outer border', plane:'top', points: function(tmpl){
+      var f = tmpl.finished;
+      return [[0,0],[f.length,0],[f.length,f.width],[0,f.width],[0,0]];
+    } },
+    { id:'engrave', label:'the engraved name', plane:'top', points: function(tmpl){
+      var f = tmpl.finished;
+      return [[f.length*0.16, f.width/2], [f.length*0.84, f.width/2]];
+    } }
+  ]
 };
 
-function mfgTraceGeometry(stockOpt){
+function mfgTraceGeometry(stockOpt, plane){
   var playW=280, playH=190, pad=18;
-  var scale = fitScale(stockOpt.length, stockOpt.thickness, playW-2*pad, playH-2*pad);
-  var boxW = stockOpt.length*scale, boxH = stockOpt.thickness*scale;
+  var dimA = stockOpt.length, dimB = plane==='top' ? stockOpt.width : stockOpt.thickness;
+  var scale = fitScale(dimA, dimB, playW-2*pad, playH-2*pad);
+  var boxW = dimA*scale, boxH = dimB*scale;
   return { playW:playW, playH:playH, scale:scale, boxW:boxW, boxH:boxH, ox:(playW-boxW)/2, oy:(playH-boxH)/2 };
+}
+function mfgTraceRefPts(tmpl, stockOpt, plane){
+  if(plane === 'top'){
+    var stockPts = [[0,0],[stockOpt.length,0],[stockOpt.length,stockOpt.width],[0,stockOpt.width]];
+    var finPts = tmpl.planOutline || [[0,0],[tmpl.finished.length,0],[tmpl.finished.length,tmpl.finished.width],[0,tmpl.finished.width]];
+    return { stockPts:stockPts, finishedPts:finPts };
+  }
+  return { stockPts: mfgStockProfile(tmpl, stockOpt.id), finishedPts: mfgFinishedProfile(tmpl) };
+}
+function mfgPtsToPathD(pts, geo){
+  return 'M' + pts.map(function(p){ var px = mfgMmToPx(p, geo); return px[0].toFixed(1)+','+px[1].toFixed(1); }).join(' L') + ' Z';
 }
 function mfgMmToPx(pt, geo){ return [geo.ox+pt[0]*geo.scale, geo.oy+geo.boxH-pt[1]*geo.scale]; }
 
@@ -2039,22 +2076,22 @@ function mfgProjectToPolyline(p, pts){
   return best;
 }
 
-function mfgTraceTabHtml(tmpl, key, editable){
-  var contourDef = MFG_TRACE_CONTOURS[key];
-  if(!contourDef) return '';
-  var prep = state.mfgPrep[key];
-  var plan = prep ? prep.plan : (state.mfgActive ? state.mfgActive.plan : mfgComputeDefaultPlan(tmpl));
+function mfgTraceContourHtml(tmpl, key, contourDef, plan, editable){
   var stockOpt = mfgStockOption(tmpl, plan.stockId);
-  var geo = mfgTraceGeometry(stockOpt);
+  var geo = mfgTraceGeometry(stockOpt, contourDef.plane);
   var clean = state.mode === 'guided';
-  var pxPts = contourDef.points.map(function(p){ return mfgMmToPx(p, geo); });
+  var points = contourDef.points(tmpl);
+  var pxPts = points.map(function(p){ return mfgMmToPx(p, geo); });
   var guideD = 'M' + pxPts.map(function(p){ return p[0].toFixed(1)+','+p[1].toFixed(1); }).join(' L');
 
-  var stockPath = polyPath(mfgStockProfile(tmpl, stockOpt.id), geo.scale, geo.scale, geo.ox, geo.oy, true, geo.boxH);
-  var finishedPath = polyPath(mfgFinishedProfile(tmpl), geo.scale, geo.scale, geo.ox, geo.oy, true, geo.boxH);
+  var refPts = mfgTraceRefPts(tmpl, stockOpt, contourDef.plane);
+  var stockPath = mfgPtsToPathD(refPts.stockPts, geo);
+  var finishedPath = mfgPtsToPathD(refPts.finishedPts, geo);
 
-  var done = !!(plan.traceResult && plan.traceResult.score >= 0);
-  var score = plan.traceResult ? plan.traceResult.score : null;
+  var results = plan.traceResults || {};
+  var result = results[contourDef.id];
+  var done = !!(result && result.score >= 0);
+  var score = result ? result.score : null;
 
   var arrowsHtml = '';
   if(clean){
@@ -2065,13 +2102,13 @@ function mfgTraceTabHtml(tmpl, key, editable){
     }
   }
 
-  var svg = '<svg viewBox="0 0 ' + geo.playW + ' ' + geo.playH + '" class="minigame-stage" id="traceSvg" data-clean="' + clean + '" shape-rendering="crispEdges">' +
+  var svg = '<svg viewBox="0 0 ' + geo.playW + ' ' + geo.playH + '" class="minigame-stage trace-stage" id="traceSvg-' + contourDef.id + '" data-contour="' + contourDef.id + '" data-clean="' + clean + '" shape-rendering="crispEdges">' +
     '<path d="' + stockPath + '" fill="#20242c" stroke="#4a5468" stroke-width="1"/>' +
     '<path d="' + finishedPath + '" fill="none" stroke="#5a6474" stroke-width="1" opacity="0.6"/>' +
     '<path d="' + guideD + '" fill="none" stroke="var(--accent2)" stroke-width="' + (clean?7:4) + '" stroke-linecap="round" stroke-linejoin="round" opacity="' + (clean?0.35:0.25) + '"/>' +
     '<path d="' + guideD + '" fill="none" stroke="#dff2ff" stroke-width="1.5" stroke-dasharray="5,4" stroke-linecap="round"/>' +
     arrowsHtml +
-    '<path d="" id="traceProgressPath" fill="none" stroke="var(--good)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '<path d="" id="traceProgressPath-' + contourDef.id + '" class="traceProgressPath" fill="none" stroke="var(--good)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>' +
     '<circle cx="' + pxPts[0][0].toFixed(1) + '" cy="' + pxPts[0][1].toFixed(1) + '" r="5" fill="var(--good)"/>' +
     '<text x="' + (pxPts[0][0]+8).toFixed(1) + '" y="' + (pxPts[0][1]-6).toFixed(1) + '" fill="var(--good)" font-size="9">START</text>' +
   '</svg>';
@@ -2084,33 +2121,48 @@ function mfgTraceTabHtml(tmpl, key, editable){
     resultHtml = '<div class="minigame-result"><span class="pill ' + fb.cls + '">' + fb.text + '</span></div>';
   }
 
-  return '<div class="minigame">' +
-    '<p class="minigame-instruction">Trace the L-step contour to define the toolpath.</p>' +
+  return '<div class="minigame" style="margin-bottom:.6em;">' +
+    '<p class="minigame-instruction">Trace ' + contourDef.label + ' to define the toolpath.</p>' +
     svg +
-    '<div class="minigame-controls">' + (editable ? '<button type="button" data-action="mfg-trace-reset" data-key="' + key + '">Restart Trace</button>' : '') + '</div>' +
+    '<div class="minigame-controls">' + (editable ? '<button type="button" data-action="mfg-trace-reset" data-key="' + key + '" data-contour="' + contourDef.id + '">Restart Trace</button>' : '') + '</div>' +
     resultHtml +
   '</div>';
 }
-
-function mfgWireContourTrace(){
-  var svg = document.getElementById('traceSvg');
-  if(!svg) return;
-  var key = openMfgTmplKey;
+function mfgTraceTabHtml(tmpl, key, editable){
+  var contours = MFG_TRACE_CONTOURS[key];
+  if(!contours) return '';
   var prep = state.mfgPrep[key];
-  var editable = prep && prep.stage === 'plan';
-  if(!editable) return;
+  var plan = prep ? prep.plan : (state.mfgActive ? state.mfgActive.plan : mfgComputeDefaultPlan(tmpl));
+  return contours.map(function(cd){ return mfgTraceContourHtml(tmpl, key, cd, plan, editable); }).join('');
+}
+
+/* Combines however many of a part's trace passes have been scored so far
+   into the single normalized traceScore economics/confidence read from --
+   not-yet-attempted passes count as the neutral baseline so starting the
+   first pass doesn't tank the score before the rest are even visible. */
+function mfgCombinedTraceScore(key, results){
+  var contours = MFG_TRACE_CONTOURS[key] || [];
+  if(!contours.length) return 0.7;
+  var sum = 0;
+  contours.forEach(function(cd){
+    var r = results[cd.id];
+    sum += (r && typeof r.score === 'number') ? r.score : 0.7;
+  });
+  return sum / contours.length;
+}
+function mfgWireOneTrace(svg, key, contourDef){
   var tmpl = MFG_JOBS[key];
-  var contourDef = MFG_TRACE_CONTOURS[key];
-  if(!contourDef) return;
+  var prep = state.mfgPrep[key];
+  if(!prep || prep.stage !== 'plan') return;
   var stockOpt = mfgStockOption(tmpl, prep.plan.stockId);
-  var geo = mfgTraceGeometry(stockOpt);
-  var pxPts = contourDef.points.map(function(p){ return mfgMmToPx(p, geo); });
+  var geo = mfgTraceGeometry(stockOpt, contourDef.plane);
+  var pxPts = contourDef.points(tmpl).map(function(p){ return mfgMmToPx(p, geo); });
   var totalLen = mfgPolylineLength(pxPts);
   var clean = state.mode === 'guided';
   var tolerance = clean ? 26 : 14;
 
   var tracing = false, maxProgress = 0, deviationSum = 0, sampleCount = 0, offCorridorCount = 0;
-  var progressEl = document.getElementById('traceProgressPath');
+  var progressEl = document.getElementById('traceProgressPath-' + contourDef.id);
 
   function svgPoint(evt){
     var rect = svg.getBoundingClientRect();
@@ -2176,14 +2228,27 @@ function mfgWireContourTrace(){
     var score = clamp(completion*0.55 + cleanliness*0.25 + corridorPenalty*0.2, 0, 1);
     var prep2 = state.mfgPrep[key];
     if(prep2 && prep2.stage === 'plan'){
-      prep2.plan.traceResult = { score:score, completion:completion };
-      prep2.scores = Object.assign(prep2.scores || mfgDefaultScores(), { traceScore: score });
+      prep2.plan.traceResults = prep2.plan.traceResults || {};
+      prep2.plan.traceResults[contourDef.id] = { score:score, completion:completion };
+      prep2.scores = Object.assign(prep2.scores || mfgDefaultScores(), { traceScore: mfgCombinedTraceScore(key, prep2.plan.traceResults) });
       scheduleAutosave();
     }
     renderMfgModalContent();
   }
   svg.addEventListener('pointerup', endTrace);
   svg.addEventListener('pointercancel', endTrace);
+}
+function mfgWireContourTrace(){
+  var key = openMfgTmplKey;
+  var prep = state.mfgPrep[key];
+  var editable = prep && prep.stage === 'plan';
+  if(!editable) return;
+  var contours = MFG_TRACE_CONTOURS[key];
+  if(!contours) return;
+  contours.forEach(function(cd){
+    var svg = document.getElementById('traceSvg-' + cd.id);
+    if(svg) mfgWireOneTrace(svg, key, cd);
+  });
 }
 
 /* ---- Process Plan tab ---- */
@@ -2200,7 +2265,7 @@ function mfgPlanTabHtml(tmpl, key){
 
   var orientationHtml = key === 'lBracket' ? mfgOrientationHtml(tmpl, key, editable) : '';
   var featureAssignHtml = key === 'lBracket' ? mfgFeatureAssignmentHtml(tmpl, key, editable) : '';
-  var traceHtml = key === 'lBracket' ? mfgTraceTabHtml(tmpl, key, editable) : '';
+  var traceHtml = MFG_TRACE_CONTOURS[key] ? mfgTraceTabHtml(tmpl, key, editable) : '';
 
   var setupsHtml = tmpl.setupDefs.map(function(sd, idx){
     var s = plan.setups[idx];
@@ -4480,10 +4545,12 @@ document.addEventListener('click', function(e){
     }
     case 'mfg-trace-reset': {
       var trKey = el.getAttribute('data-key');
+      var trContour = el.getAttribute('data-contour');
       var trPrep = state.mfgPrep[trKey];
       if(trPrep && trPrep.stage === 'plan'){
-        trPrep.plan.traceResult = null;
-        trPrep.scores = Object.assign(trPrep.scores || mfgDefaultScores(), { traceScore: 0.7 });
+        trPrep.plan.traceResults = trPrep.plan.traceResults || {};
+        delete trPrep.plan.traceResults[trContour];
+        trPrep.scores = Object.assign(trPrep.scores || mfgDefaultScores(), { traceScore: mfgCombinedTraceScore(trKey, trPrep.plan.traceResults) });
         scheduleAutosave();
       }
       renderMfgModalContent();
