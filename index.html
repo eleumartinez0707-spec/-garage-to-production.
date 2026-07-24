@@ -681,7 +681,7 @@ function mfgFeature(def){
 var MFG_JOBS = {
 
   nameplate: {
-    id:'mfg_nameplate', partNumber:'NP-101', part:'Name Plate', tutorial:true,
+    id:'mfg_nameplate', partNumber:'NP-101', part:'Custom Name Plate', tutorial:true,
     customer:'Maple Street Signs', materialKey:'aluminum', qty:10, dueSec:900,
     basePayment:210, difficulty:1, minRep:0,
     stockOptions:[
@@ -913,7 +913,7 @@ function buildExtrudedProfileSVG(profilePts, scale, ox, oy, boxH, pal, depthPx){
 }
 
 /* ---- Blueprint view: cyanotype-style engineering drawing, generated from job data ---- */
-function buildBlueprintSVG(tmpl){
+function buildBlueprintSVG(tmpl, customerName){
   var top = { w: tmpl.finished.length, h: tmpl.finished.width };
   var profilePts = mfgFinishedProfile(tmpl);
   var profBoxW = tmpl.finished.length, profBoxH = tmpl.finished.thickness;
@@ -956,6 +956,17 @@ function buildBlueprintSVG(tmpl){
       svg += '<rect x="'+sx.toFixed(1)+'" y="'+sy.toFixed(1)+'" width="'+sw.toFixed(1)+'" height="'+sh.toFixed(1)+'" rx="'+(Math.min(sw,sh)/2.2).toFixed(1)+'" fill="none" stroke="#dff2ff" stroke-width="0.8" stroke-dasharray="3,2"/>';
     }
   });
+
+  // Show the exact assigned engraving in the center of the nameplate drawing.
+  // The font scales down for longer directory names while staying legible.
+  if(tmpl.id === 'mfg_nameplate' && customerName){
+    var blueprintName = String(customerName).toUpperCase();
+    var nameWidth = Math.max(72, topW - 48);
+    var nameFontSize = clamp(nameWidth / Math.max(8, blueprintName.length) / 0.62, 5.5, 10);
+    var nameX = ox1 + topW/2, nameY = oy1 + topH/2;
+    svg += '<rect x="'+(nameX-nameWidth/2).toFixed(1)+'" y="'+(nameY-9).toFixed(1)+'" width="'+nameWidth.toFixed(1)+'" height="18" fill="#0a2440" stroke="#4a7fa8" stroke-width="0.5"/>';
+    svg += '<text x="'+nameX.toFixed(1)+'" y="'+(nameY+3).toFixed(1)+'" fill="#dff2ff" font-size="'+nameFontSize.toFixed(1)+'" font-weight="bold" letter-spacing="0.4" text-anchor="middle">' + mfgEscapeXml(blueprintName) + '</text>';
+  }
 
   svg += '<line x1="'+ox1+'" y1="'+(oy1+topH+8)+'" x2="'+(ox1+topW)+'" y2="'+(oy1+topH+8)+'" stroke="#dff2ff" stroke-width="0.6"/>';
   svg += '<line x1="'+ox1+'" y1="'+(oy1+topH+5)+'" x2="'+ox1+'" y2="'+(oy1+topH+11)+'" stroke="#dff2ff" stroke-width="0.6"/>';
@@ -1146,10 +1157,9 @@ function mfgProgramSeconds(tmpl, plan){
   return clamp(Math.round(base * camMult * repeatMult), 3, 10);
 }
 
-/* Placeholder pool for the Name Plate's random Etsy-style customer name --
-   swap in the user's real list whenever it's provided. Re-rolled fresh
-   every time a new Name Plate order is picked up (see mfgStartPrep). */
-var NAMEPLATE_CUSTOMER_NAMES = [
+/* Name directory used for Custom Name Plate engraving. A fresh name is
+   selected every time a new order is picked up (see mfgStartPrep). */
+var NAMEPLATE_NAME_DIRECTORY = [
   'Bartholomew Wigglesworth', 'Debbie Fizzlebottom', 'Chad Sparklepants',
   'Nigel P. Snugglesworth', 'Doris McWaffle', 'Gary Fartleberry',
   'Trixie Bumblesnout', 'Reginald Cheddarton', 'Mildred Quacklebush',
@@ -1158,7 +1168,7 @@ var NAMEPLATE_CUSTOMER_NAMES = [
   'Barnaby Custardface'
 ];
 function mfgRandomNameplateCustomer(){
-  return NAMEPLATE_CUSTOMER_NAMES[Math.floor(Math.random()*NAMEPLATE_CUSTOMER_NAMES.length)];
+  return NAMEPLATE_NAME_DIRECTORY[Math.floor(Math.random()*NAMEPLATE_NAME_DIRECTORY.length)];
 }
 
 function mfgStartPrep(tmplKey){
@@ -1847,7 +1857,7 @@ function mfgBlueprintTabHtml(tmpl, key){
       '<button type="button" data-action="mfg-partview" data-view="stock" aria-pressed="' + (mfgPartView==='stock') + '">Raw Stock</button>' +
     '</div>' +
     '<div class="mill-mini" style="max-width:280px; margin:.6em auto; background:#0a2440;" aria-hidden="true">' +
-      (mfgPartView==='blueprint' ? buildBlueprintSVG(tmpl) : buildPartVisualSVG(tmpl, mfgPartView, { stockId: (prep? prep.plan.stockId : tmpl.recommendedStockId), customerName: customerName })) +
+      (mfgPartView==='blueprint' ? buildBlueprintSVG(tmpl, customerName) : buildPartVisualSVG(tmpl, mfgPartView, { stockId: (prep? prep.plan.stockId : tmpl.recommendedStockId), customerName: customerName })) +
     '</div>' +
     '<div class="stat-grid">' +
       statBox('Material', MATERIALS[tmpl.materialKey].label) +
