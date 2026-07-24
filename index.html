@@ -505,7 +505,7 @@ body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behav
 /* ============================== DATA ============================== */
 
 var SAVE_KEY = 'g2p_save';
-var SAVE_VERSION = 6;
+var SAVE_VERSION = 7;
 
 /* Normalized minigame/process scores (0-1, 0.7 = competent-neutral baseline so old
    saves and un-played minigames behave like a reasonably-run job, not a broken one). */
@@ -782,20 +782,20 @@ var MFG_JOBS = {
     // Candidate distances around the 260 mm perimeter. Players choose which
     // locations become tabs; the recommended four match the marked example.
     tabCandidateArc:[4,16,40,64,78,90,104,120,138,153,165,180,195,208,225,245],
-    recommendedTabPlacements:[3,8,10,14],
+    recommendedTabPlacements:[1,3,7,10,14],
     setupsRequired:1,
     setupDefs:[
       { n:1, label:'Setup 1 — Drill Holes, Tabbed Contour & Cleanup', faceUp:'top',
-        recommendedWorkholding:['tabs'],
-        note:'Drill every hole while the plate is fully supported. Then cut the 0.145 in outer contour with a 1/8 in end mill, leaving four tabs. Break the tabs off and sand them flush after unloading.' }
+        recommendedWorkholding:['clamps','tabs'],
+        note:'Drill every hole while the plate is fully supported by toe clamps. Then cut the 0.145 in outer contour with a 1/8 in end mill, leaving five tabs. Break the tabs off and sand them flush after unloading.' }
     ],
     features:[
       mfgFeature({ id:'h1', type:'hole', face:'top', setupMin:1, x:12, y:38, diameter:8, through:true, label:'Drill leg hole A first' }),
       mfgFeature({ id:'h2', type:'hole', face:'top', setupMin:1, x:12, y:12, diameter:8, through:true, label:'Drill leg hole B first' }),
       mfgFeature({ id:'h3', type:'hole', face:'top', setupMin:1, x:48, y:10, diameter:6, through:true, label:'Drill shelf hole C first' }),
       mfgFeature({ id:'h4', type:'hole', face:'top', setupMin:1, x:68, y:10, diameter:6, through:true, label:'Drill shelf hole D first' }),
-      mfgFeature({ id:'c1', type:'contour', face:'top', setupMin:1, label:'Cut 0.145 in outer contour, leaving four tabs' }),
-      mfgFeature({ id:'t1', type:'tabCleanup', face:'top', setupMin:1, label:'Break off and sand four holding tabs flush' })
+      mfgFeature({ id:'c1', type:'contour', face:'top', setupMin:1, label:'Cut 0.145 in outer contour, leaving five tabs' }),
+      mfgFeature({ id:'t1', type:'tabCleanup', face:'top', setupMin:1, label:'Break off and sand five holding tabs flush' })
     ],
     inspectionDims:[
       { id:'dHeight', label:'Overall L height', nominal:50, tol:0.15, unit:'mm' },
@@ -831,7 +831,9 @@ function evaluateMfgPlan(tmpl, plan){
     if(!setupDef) return;
     var wh = WORKHOLDING[s.workholdingId];
     if(!wh) return;
-    if(setupDef.riskyWorkholding && setupDef.riskyWorkholding.indexOf(s.workholdingId) !== -1){
+    if(tmpl.id==='mfg_lBracket' && (s.workholdingId==='standardJaws' || s.workholdingId==='parallels')){
+      warnings.push({ level:'bad', text:'Setup ' + setupDef.n + ': vise jaws squeeze the wide plate unevenly. The stock can bow and become unusable.' });
+    } else if(setupDef.riskyWorkholding && setupDef.riskyWorkholding.indexOf(s.workholdingId) !== -1){
       warnings.push({ level:'bad', text:'Setup ' + setupDef.n + ': ' + wh.label + ' risks marking or moving the already-finished surface.' });
     } else if(setupDef.recommendedWorkholding.indexOf(s.workholdingId) === -1){
       warnings.push({ level:'warn', text:'Setup ' + setupDef.n + ': ' + wh.label + ' is not the recommended workholding for this setup.' });
@@ -928,16 +930,16 @@ function mfgEvaluateTabPlacement(tmpl, selected){
   (selected||[]).forEach(function(i){ if(candidates[i]) unique[i]=true; });
   var chosen=candidates.filter(function(c){ return unique[c.index]; }).sort(function(a,b){ return a.s-b.s; });
   var count=chosen.length, score=1, issues=[];
-  if(count<3){
+  if(count<4){
     score-=0.62;
     issues.push({ level:'bad', source:'tabs', code:'tooFew', text:'Too few tabs: the bracket will lose support and chatter during the contour cut.' });
-  }else if(count===3){
+  }else if(count===4){
     score-=0.28;
-    issues.push({ level:'warn', source:'tabs', code:'few', text:'Only three tabs: support is marginal and chatter is more likely.' });
-  }else if(count===5){
+    issues.push({ level:'warn', source:'tabs', code:'few', text:'Only four tabs: the inner corner or one long edge has marginal support and may chatter.' });
+  }else if(count===6){
     score-=0.18;
-    issues.push({ level:'warn', source:'tabs', code:'many', text:'Five tabs will hold, but add unnecessary break-off and sanding work.' });
-  }else if(count>5){
+    issues.push({ level:'warn', source:'tabs', code:'many', text:'Six tabs will hold, but add unnecessary break-off and sanding work.' });
+  }else if(count>6){
     score-=0.48;
     issues.push({ level:'bad', source:'tabs', code:'tooMany', text:'Too many tabs: excessive cleanup can sand flats into the profile and leave it uneven.' });
   }
@@ -972,7 +974,7 @@ function mfgEvaluateTabPlacement(tmpl, selected){
     }
   }
   score=clamp(score,0,1);
-  return { score:score, count:count, chosen:chosen, issues:issues, maxGap:maxGap, minGap:minGap, good:count===4 && !issues.length };
+  return { score:score, count:count, chosen:chosen, issues:issues, maxGap:maxGap, minGap:minGap, good:count===5 && !issues.length };
 }
 
 /* Cabinet-style pseudo-3D extrusion of a 2D profile so a flat silhouette
@@ -1446,6 +1448,12 @@ function mfgCrashRoll(tmpl, plan){
   ];
   return messages[Math.floor(Math.random()*messages.length)];
 }
+function mfgLBracketViseFailure(tmpl, plan){
+  if(!tmpl || tmpl.id!=='mfg_lBracket') return null;
+  var firstSetup=plan && plan.setups && plan.setups[0];
+  if(!firstSetup || (firstSetup.workholdingId!=='standardJaws' && firstSetup.workholdingId!=='parallels')) return null;
+  return 'The wide stock plate bowed when the vise jaws were tightened. It is no longer flat enough to machine and the material cost was lost.';
+}
 function mfgRunInspectionDims(tmpl, qualityScore){
   var devScale = (100-qualityScore)/100;
   return tmpl.inspectionDims.map(function(d){
@@ -1571,8 +1579,22 @@ function mfgSetupOnMachine(tmplKey){
 function mfgConfirmSetupRunFirstArticle(){
   var ap = state.mfgActive;
   if(!ap || ap.stage !== 'setup') return false;
-  if(!mfgClampSetupComplete(ap)) return false;
   var tmpl = MFG_JOBS[ap.tmplKey];
+  var viseFailure=mfgLBracketViseFailure(tmpl,ap.plan);
+  if(!viseFailure && !mfgClampSetupComplete(ap)) return false;
+  if(viseFailure){
+    ap.scrapCount++;
+    ap.blanksInStock=Math.max(0,ap.blanksInStock-1);
+    ap.economics.scrapCost=(ap.economics.scrapCost||0)+Math.round(tmpl.materialCostBase);
+    ap._stockAlreadyScrapped=true;
+    ap.lastInspection={ dims:[], issues:[viseFailure], pass:false, quality:0, bentStock:true };
+    ap.stage='inspecting';
+    ap.confidenceScore=clamp(ap.confidenceScore-25,0,100);
+    ap.confidence=mfgConfidenceFromScore(ap.confidenceScore);
+    toast('Plate bent — material scrapped.', 'bad');
+    scheduleAutosave();
+    return true;
+  }
   ap.completedFeatureIds = {};
   ap.elapsedSim = 0;
   ap.totalSim = mfgCycleBreakdown(tmpl, ap.program).total;
@@ -1623,6 +1645,21 @@ function mfgFinishCycle(){
   var crashMsg = mfgCrashRoll(tmpl, ap.plan);
 
   if(ap.stage === 'firstArticle'){
+    var viseFailure=mfgLBracketViseFailure(tmpl,ap.plan);
+    if(viseFailure){
+      ap.scrapCount++;
+      ap.blanksInStock=Math.max(0,ap.blanksInStock-1);
+      ap.economics.scrapCost=(ap.economics.scrapCost||0)+Math.round(tmpl.materialCostBase);
+      ap._stockAlreadyScrapped=true;
+      ap.lastInspection={ dims:[], issues:[viseFailure], pass:false, quality:0, bentStock:true };
+      ap.stage='inspecting';
+      ap.confidenceScore=clamp(ap.confidenceScore-25,0,100);
+      ap.confidence=mfgConfidenceFromScore(ap.confidenceScore);
+      toast('Plate bent — material scrapped.', 'bad');
+      scheduleAutosave();
+      render();
+      return;
+    }
     if(crashMsg){
       ap.lastInspection = { dims: [], issues: [crashMsg], pass: false, quality: 0, crashed: true };
       ap.stage = 'inspecting';
@@ -1730,8 +1767,11 @@ function mfgRerunAfterCorrection(){
 }
 function mfgScrapAndRestart(){
   var ap = state.mfgActive; if(!ap || ap.stage !== 'inspecting') return false;
-  ap.blanksInStock = Math.max(0, ap.blanksInStock - 1);
-  ap.economics.scrapCost = (ap.economics.scrapCost||0) + Math.round(MFG_JOBS[ap.tmplKey].materialCostBase);
+  if(!ap._stockAlreadyScrapped){
+    ap.blanksInStock = Math.max(0, ap.blanksInStock - 1);
+    ap.economics.scrapCost = (ap.economics.scrapCost||0) + Math.round(MFG_JOBS[ap.tmplKey].materialCostBase);
+  }
+  ap._stockAlreadyScrapped=false;
   ap.stage = 'setup';
   ap.clampSetup = mfgFreshClampSetup();
   scheduleAutosave();
@@ -2125,9 +2165,9 @@ function mfgScoreStockPlacement(tmpl, stockOpt, dx, dy){
 function mfgStockPlacementFeedback(scores, tmpl){
   var lines = [];
   if(tmpl && tmpl.id === 'mfg_lBracket'){
-    lines.push(scores.availableGrip >= 0.75 ? { cls:'good', text:'Good support around the outside for four holding tabs.' } :
+    lines.push(scores.availableGrip >= 0.75 ? { cls:'good', text:'Good support around the outside for five holding tabs.' } :
       scores.availableGrip >= 0.45 ? { cls:'warn', text:'The tabs can work, but there is little surrounding stock for support.' } :
-      { cls:'bad', text:'Move the bracket inward so all four tabs connect to solid stock.' });
+      { cls:'bad', text:'Move the bracket inward so all five tabs connect to solid stock.' });
     lines.push(scores.materialEfficiency >= 0.55 ? { cls:'good', text:'Efficient plate layout.' } :
       { cls:'warn', text:'A fair amount of plate will remain around the contour.' });
     return lines;
@@ -2215,7 +2255,7 @@ function mfgStockPlacementHtml(tmpl, key, editable){
   }).join('') + '</div>';
 
   return '<div class="minigame">' +
-    '<p class="minigame-instruction">' + (topPlane ? 'Place the bracket with solid stock around all four holding tabs.' : 'Place the part inside the stock.') + '</p>' +
+    '<p class="minigame-instruction">' + (topPlane ? 'Place the bracket with solid stock around all five holding tabs.' : 'Place the part inside the stock.') + '</p>' +
     stockChoiceHtml +
     svg +
     '<div class="minigame-controls">' +
@@ -2761,19 +2801,19 @@ function mfgLBracketTabPlacementHtml(tmpl,key,editable){
     '</g>';
   });
   var feedbackHtml=check.good ?
-    '<div class="minigame-result"><span class="pill good">Shop-ready: four tabs are on straight runs, close enough to support corners, and spread around the profile.</span></div>' :
+    '<div class="minigame-result"><span class="pill good">Shop-ready: five tabs support the outer edges and inner corner without crowding cleanup areas.</span></div>' :
     '<div class="minigame-result">'+check.issues.map(function(i){ return '<span class="pill '+(i.level==='bad'?'bad':'warn')+'">'+i.text+'</span>'; }).join('')+'</div>';
   return '<div class="minigame">' +
     '<p class="minigame-instruction">Choose the holding-tab locations.</p>' +
-    '<p class="muted" style="font-size:.82rem;">Tap the numbered contour markers. Aim for four tabs, keep them on straight runs 8–22 mm from a corner, and spread support around the part.</p>' +
+    '<p class="muted" style="font-size:.82rem;">Tap the numbered contour markers. Aim for five tabs at locations 2, 4, 8, 11, and 15, keeping support spread around the part.</p>' +
     '<svg viewBox="0 0 '+geo.playW+' '+geo.playH+'" class="minigame-stage" shape-rendering="crispEdges" aria-label="Interactive L bracket tab placement">' +
       '<path d="'+stockPath+'" fill="#272d36" stroke="#5a6474" stroke-width="1.5"/>' +
       '<path d="'+partPath+'" fill="#aeb8c5" stroke="#111820" stroke-width="'+contourPx.toFixed(1)+'" stroke-linejoin="round"/>' +
       holesHtml+candidatesHtml +
     '</svg>' +
     '<div class="minigame-controls">' +
-      '<span class="pill '+(check.count===4?'good':'')+'">'+check.count+' tab'+(check.count===1?'':'s')+' selected</span>' +
-      (editable?'<button type="button" data-action="mfg-tab-best" data-key="'+key+'">Use Recommended 4</button><button type="button" data-action="mfg-tab-clear" data-key="'+key+'">Clear Tabs</button>':'') +
+      '<span class="pill '+(check.good?'good':'')+'">'+check.count+' tab'+(check.count===1?'':'s')+' selected</span>' +
+      (editable?'<button type="button" data-action="mfg-tab-best" data-key="'+key+'">Use Recommended 5</button><button type="button" data-action="mfg-tab-clear" data-key="'+key+'">Clear Tabs</button>':'') +
     '</div>' +
     feedbackHtml +
   '</div>';
@@ -2785,8 +2825,8 @@ function mfgLBracketSequenceHtml(tmpl){
     '<ol style="margin:.35em 0 .5em; padding-left:1.35em; line-height:1.55;">' +
       '<li><b>Drill all four holes first</b> while the full plate supports the part.</li>' +
       '<li><b>Cut the outer contour second</b> with the 1/8 in end mill.</li>' +
-      '<li><b>Leave four holding tabs</b> at the red locations so the bracket cannot move.</li>' +
-      '<li><b>Break and sand the tabs flush</b> after the plate is unloaded.</li>' +
+      '<li><b>Leave five holding tabs</b> at locations 2, 4, 8, 11, and 15 so the bracket cannot move.</li>' +
+      '<li><b>Break and sand the five tabs flush</b> after the plate is unloaded.</li>' +
     '</ol>' +
     '<div class="row" style="gap:.35em;">' +
       '<span class="pill good">0.125 in cutter</span>' +
@@ -2941,11 +2981,15 @@ function mfgSetupTabHtml(tmpl, key){
     var s = ap.plan.setups[idx];
     return '<li>Setup ' + sd.n + ': ' + WORKHOLDING[s.workholdingId].label + '</li>';
   }).join('');
-  var clampsReady=mfgClampSetupComplete(ap);
+  var viseRisk=mfgLBracketViseFailure(tmpl,ap.plan);
+  var clampsReady=viseRisk ? true : mfgClampSetupComplete(ap);
+  var setupInteraction=viseRisk ?
+    '<div class="minigame-result"><span class="pill bad">Unsafe workholding: the vise will bow this wide plate. Running it will scrap one blank and charge its material cost.</span></div>' :
+    mfgClampSetupHtml(tmpl,key,ap);
   return '<p>Stock: ' + mfgStockOption(tmpl, ap.plan.stockId).label + '</p>' +
     '<ul>' + setupsHtml + '</ul>' +
-    mfgClampSetupHtml(tmpl,key,ap) +
-    '<button type="button" class="primary" style="width:100%;" data-action="mfg-run-first-article" data-key="' + key + '" '+(clampsReady?'':'disabled')+'>Run First Article</button>' +
+    setupInteraction +
+    '<button type="button" class="primary" style="width:100%;" data-action="mfg-run-first-article" data-key="' + key + '" '+(clampsReady?'':'disabled')+'>'+(viseRisk?'Run Anyway — Risk the Plate':'Run First Article')+'</button>' +
     '<button type="button" style="width:100%; margin-top:.4em;" data-action="mfg-unload-setup" data-key="' + key + '">&larr; Unload &amp; Edit Plan</button>';
 }
 
@@ -2984,13 +3028,16 @@ function mfgInspectionTabHtml(tmpl, key){
     return '<tr><td>' + d.label + '</td><td>' + d.nominal + ' &plusmn;' + d.tol + ' ' + d.unit + '</td><td>' + d.measured + ' ' + d.unit + '</td>' +
       '<td class="' + (d.pass?'good':'bad') + '" style="color:var(--' + (d.pass?'good':'bad') + ');">' + (d.pass?'PASS':'FAIL') + '</td></tr>';
   }).join('');
-  var tableHtml = insp.crashed ? '' : '<table><thead><tr><th>Dimension</th><th>Target</th><th>Measured</th><th>Result</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  var tableHtml = (insp.crashed || insp.bentStock) ? '' : '<table><thead><tr><th>Dimension</th><th>Target</th><th>Measured</th><th>Result</th></tr></thead><tbody>' + rows + '</tbody></table>';
   var issuesHtml = insp.issues.length ? '<ul class="warning-list">' + insp.issues.map(function(i){return '<li>'+i+'</li>';}).join('') + '</ul>' : '';
 
   var actionsHtml;
   if(ap.stage === 'inspecting' && insp.pass){
     actionsHtml = '<p class="pill good">First article passed.</p>' +
       '<button type="button" class="primary" style="width:100%; margin-top:.4em;" data-action="mfg-approve" data-key="' + key + '">Approve &amp; Continue</button>';
+  } else if(ap.stage === 'inspecting' && insp.bentStock){
+    actionsHtml = '<p class="pill bad">The bowed plate is scrap. Its material cost has been added to this job.</p>' +
+      '<button type="button" class="primary" style="width:100%; margin-top:.6em;" data-action="mfg-bent-replan" data-key="' + key + '">Load New Plate &amp; Change Workholding</button>';
   } else if(ap.stage === 'inspecting'){
     actionsHtml = '<p class="pill bad">First article failed inspection.</p>' +
       '<h4 class="section-title">Corrections</h4>' +
@@ -2998,7 +3045,7 @@ function mfgInspectionTabHtml(tmpl, key){
         var c = MFG_CORRECTIONS[ck];
         return '<button type="button" data-action="mfg-correct" data-key="' + key + '" data-correction="' + ck + '">' + c.label + (c.costCash?' ($'+TOOLS[tmpl.toolKey].price+')':'') + '</button>';
       }).join('') + '</div>' +
-      '<button type="button" class="danger" style="width:100%; margin-top:.6em;" data-action="mfg-scrap-restart" data-key="' + key + '">Scrap Part &amp; Restart Setup</button>';
+      '<button type="button" class="danger" style="width:100%; margin-top:.6em;" data-action="mfg-scrap-restart" data-key="' + key + '">' + (insp.bentStock?'Reload Plate &amp; Restart Setup':'Scrap Part &amp; Restart Setup') + '</button>';
   } else {
     actionsHtml = '<p class="muted">Correction in progress &mdash; return to the First Article tab to re-run.</p>';
   }
@@ -3241,6 +3288,23 @@ function migrateSave(data){
     if(data.mfgActive && data.mfgActive.stage === 'setup' && !data.mfgActive.clampSetup){
       data.mfgActive.clampSetup = { sequence:[0,3,1,2], progress:[], error:null };
     }
+  }
+  if(fromVersion < 7){
+    /* v7 adopts the machinist-approved five-tab layout. Only the previous
+       four-tab default is replaced; intentionally custom player layouts are
+       preserved and simply rescored under the new rule. */
+    function upgradeBracketTabs(holder){
+      if(!holder || !holder.plan) return;
+      var tabs=holder.plan.tabPlacements;
+      if(!Array.isArray(tabs) || tabs.join(',')==='3,8,10,14'){
+        holder.plan.tabPlacements=MFG_JOBS.lBracket.recommendedTabPlacements.slice();
+      }
+      holder.scores=Object.assign(mfgDefaultScores(),holder.scores||{});
+      holder.scores.tabPlacementScore=mfgEvaluateTabPlacement(MFG_JOBS.lBracket,holder.plan.tabPlacements).score;
+    }
+    if(data.mfgPrep && data.mfgPrep.lBracket) upgradeBracketTabs(data.mfgPrep.lBracket);
+    if(data.mfgActive && data.mfgActive.tmplKey==='lBracket') upgradeBracketTabs(data.mfgActive);
+    if(data.mfgParked && data.mfgParked.lBracket) upgradeBracketTabs(data.mfgParked.lBracket);
   }
   data.version = SAVE_VERSION;
   return data;
@@ -5406,7 +5470,10 @@ document.addEventListener('click', function(e){
     case 'mfg-run-first-article':
       withLock(function(){
         var fk = el.getAttribute('data-key');
-        if(mfgConfirmSetupRunFirstArticle()){ mfgActiveTab = 'firstArticle'; renderMfgModalContent(); }
+        if(mfgConfirmSetupRunFirstArticle()){
+          mfgActiveTab = state.mfgActive && state.mfgActive.stage==='inspecting' ? 'inspecting' : 'firstArticle';
+          renderMfgModalContent();
+        }
       });
       break;
     case 'mfg-rerun':
@@ -5435,6 +5502,17 @@ document.addEventListener('click', function(e){
     case 'mfg-scrap-restart':
       withLock(function(){
         if(mfgScrapAndRestart()){ mfgActiveTab = 'setup'; renderMfgModalContent(); }
+      });
+      break;
+    case 'mfg-bent-replan':
+      withLock(function(){
+        var bentKey=el.getAttribute('data-key');
+        if(mfgScrapAndRestart() && mfgUnloadFromSetup(bentKey)){
+          mfgActiveTab='plan';
+          renderMfgModalContent();
+          renderBlueprintJobs();
+          toast('New plate loaded. Choose toe clamps or machined tabs.', 'good');
+        }
       });
       break;
     case 'mfg-run-batch':
