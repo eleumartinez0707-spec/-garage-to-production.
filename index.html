@@ -182,9 +182,18 @@ body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behav
 .machine-anim .mf-idle{ opacity:1; }
 .machine-anim .mf-coolant, .machine-anim .mf-dry{ opacity:0; }
 .machine-anim.running .mf-idle{ opacity:0; }
-.machine-anim.running.wet .mf-coolant{ opacity:1; animation:toolpathSweep 3.2s ease-in-out infinite; }
-.machine-anim.running.dry .mf-dry{ opacity:1; animation:toolpathSweep 3.2s ease-in-out infinite; }
-@keyframes toolpathSweep{
+.machine-anim.running.wet .mf-coolant{ opacity:1; }
+.machine-anim.running.dry .mf-dry{ opacity:1; }
+/* Each running frame is one flattened sprite (spindle+tool+vise+stock), so
+   it's split into two copies: the base layer is clipped to just the vise/
+   stock/splash and never moves, while the tool layer is clipped to just the
+   spindle+toolholder+flutes above it and sweeps a small toolpath pattern --
+   so the workpiece reads as clamped and still while only the tool travels. */
+.machine-anim .mf-tool-layer{ clip-path:inset(0 0 37% 0); }
+.machine-anim .mf-base-layer{ clip-path:inset(63% 0 0 0); }
+.machine-anim.running.wet .mf-coolant.mf-tool-layer{ animation:toolheadSweep 3.2s ease-in-out infinite; }
+.machine-anim.running.dry .mf-dry.mf-tool-layer{ animation:toolheadSweep 3.2s ease-in-out infinite; }
+@keyframes toolheadSweep{
   0%   { transform:translate(-50%,-50%) translate(-7px,-4px); }
   12%  { transform:translate(-50%,-50%) translate(7px,-4px); }
   25%  { transform:translate(-50%,-50%) translate(7px,-1px); }
@@ -198,6 +207,16 @@ body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behav
 @media (prefers-reduced-motion: reduce){
   .machine-anim .mf-coolant, .machine-anim .mf-dry{ animation:none !important; }
 }
+@keyframes crashShake{
+  0%{ transform:translate(0,0) rotate(0); }
+  20%{ transform:translate(-3px,0) rotate(-4deg); }
+  40%{ transform:translate(3px,0) rotate(4deg); }
+  60%{ transform:translate(-2px,0) rotate(-2deg); }
+  80%{ transform:translate(2px,0) rotate(2deg); }
+  100%{ transform:translate(0,0) rotate(0); }
+}
+.crash-badge{ display:flex; align-items:center; justify-content:center; gap:.5em; margin-bottom:.4em; animation:crashShake 0.4s ease-out; }
+@media (prefers-reduced-motion: reduce){ .crash-badge{ animation:none; } }
 .op-badge{ display:inline-block; padding:.25em .7em; background:var(--panel2); border-radius:999px; border:1px solid var(--border); }
 .warning-list{ list-style:none; margin:.4em 0; padding:0; }
 .warning-list li{ background:rgba(255,92,92,.12); border:1px solid var(--bad); color:#ffb3b3; padding:.35em .6em; border-radius:6px; margin-bottom:.3em; font-size:.85rem;}
@@ -2492,10 +2511,12 @@ function mfgInspectionTabHtml(tmpl, key){
   var ap = state.mfgActive;
   if(!ap || ap.tmplKey !== key || !ap.lastInspection) return '<p class="muted">No first article to inspect yet.</p>';
   var insp = ap.lastInspection;
+  var crashBadgeHtml = insp.crashed ? '<div class="crash-badge">' + mfgBrokenToolBadge() + '</div>' : '';
   var rows = insp.dims.map(function(d){
     return '<tr><td>' + d.label + '</td><td>' + d.nominal + ' &plusmn;' + d.tol + ' ' + d.unit + '</td><td>' + d.measured + ' ' + d.unit + '</td>' +
       '<td class="' + (d.pass?'good':'bad') + '" style="color:var(--' + (d.pass?'good':'bad') + ');">' + (d.pass?'PASS':'FAIL') + '</td></tr>';
   }).join('');
+  var tableHtml = insp.crashed ? '' : '<table><thead><tr><th>Dimension</th><th>Target</th><th>Measured</th><th>Result</th></tr></thead><tbody>' + rows + '</tbody></table>';
   var issuesHtml = insp.issues.length ? '<ul class="warning-list">' + insp.issues.map(function(i){return '<li>'+i+'</li>';}).join('') + '</ul>' : '';
 
   var actionsHtml;
@@ -2514,7 +2535,7 @@ function mfgInspectionTabHtml(tmpl, key){
     actionsHtml = '<p class="muted">Correction in progress &mdash; return to the First Article tab to re-run.</p>';
   }
 
-  return '<table><thead><tr><th>Dimension</th><th>Target</th><th>Measured</th><th>Result</th></tr></thead><tbody>' + rows + '</tbody></table>' + issuesHtml + actionsHtml;
+  return crashBadgeHtml + tableHtml + issuesHtml + actionsHtml;
 }
 
 /* ---- Production tab ---- */
@@ -2545,7 +2566,8 @@ function mfgProductionTabHtml(tmpl, key){
       '<p class="muted" id="mfg-progress-text">Running batch &mdash; ' + ap.batchRemaining + ' part(s) left in this batch.</p>';
   } else if(ap.paused && ap.stopReason){
     var stopCls = ap.stopReason==='complete' ? 'good' : (ap.stopReason==='crash' || ap.stopReason==='tool') ? 'bad' : 'warn';
-    runningHtml = '<p class="pill ' + stopCls + '">Stopped: ' + mfgStopReasonText(ap.stopReason) + '.</p>';
+    var crashBadge = ap.stopReason==='crash' ? '<div class="crash-badge">' + mfgBrokenToolBadge() + '</div>' : '';
+    runningHtml = crashBadge + '<p class="pill ' + stopCls + '">Stopped: ' + mfgStopReasonText(ap.stopReason) + '.</p>';
   }
 
   var batchHtml = '';
@@ -3845,8 +3867,31 @@ function machineAnimHtml(spinning, wet){
   var cls = 'machine-anim' + (spinning ? ' running ' + (wet ? 'wet' : 'dry') : ' paused');
   return '<div class="' + cls + '">' +
     '<img class="mf-idle" src="' + SHEET.endmillIdle + '" alt="">' +
-    '<img class="mf-coolant" src="' + SHEET.endmillCoolant + '" alt="">' +
-    '<img class="mf-dry" src="' + SHEET.endmillDry + '" alt=""></div>';
+    '<img class="mf-coolant mf-base-layer" src="' + SHEET.endmillCoolant + '" alt="">' +
+    '<img class="mf-coolant mf-tool-layer" src="' + SHEET.endmillCoolant + '" alt="">' +
+    '<img class="mf-dry mf-base-layer" src="' + SHEET.endmillDry + '" alt="">' +
+    '<img class="mf-dry mf-tool-layer" src="' + SHEET.endmillDry + '" alt="">' +
+  '</div>';
+}
+
+/* Small standalone icon for a snapped endmill: an intact stub still in the
+   holder, a jagged break, and the sheared-off piece fallen away with a
+   couple of sparks -- shown wherever a crash has just stopped the job. */
+function mfgBrokenToolBadge(){
+  return '<svg viewBox="0 0 120 90" style="width:64px; height:48px; flex:none;" shape-rendering="crispEdges" aria-hidden="true">' +
+    '<rect x="50" y="4" width="20" height="14" fill="#6d7484"/>' +
+    '<rect x="54" y="18" width="12" height="15" fill="#3a3f48"/>' +
+    '<polygon points="54,33 58,38 61,32 64,39 66,33" fill="#0d0d0c"/>' +
+    '<g transform="translate(70,50) rotate(35)">' +
+      '<rect x="-4" y="0" width="8" height="24" fill="#23262d"/>' +
+      '<polygon points="-4,0 4,0 2,-6 -2,-4" fill="#0d0d0c"/>' +
+    '</g>' +
+    '<circle cx="40" cy="46" r="1.6" fill="#c9c9c9"/>' +
+    '<circle cx="82" cy="58" r="1.4" fill="#c9c9c9"/>' +
+    '<line x1="30" y1="30" x2="23" y2="23" stroke="#ffb14d" stroke-width="2"/>' +
+    '<line x1="88" y1="32" x2="96" y2="26" stroke="#ffb14d" stroke-width="2"/>' +
+    '<line x1="33" y1="53" x2="25" y2="57" stroke="#ffb14d" stroke-width="2"/>' +
+  '</svg>';
 }
 
 function buildMillWidget(spinning, idSuffix, hudOpts){
@@ -4391,6 +4436,31 @@ function refreshContinueButton(){
     hint.textContent = 'No saved shop found yet.';
   }
 }
+
+/* requestAnimationFrame gets throttled (often to ~1/sec or fully paused) once
+   the tab is backgrounded, so production visibly stalls while the player is
+   away on another tab -- unlike the full-reload path, which already fast-
+   forwards via mfgSimulateOffline. Catch up the same way on tab return so
+   switching away and back behaves like leaving and reloading. */
+var tabHiddenAt = null;
+document.addEventListener('visibilitychange', function(){
+  if(document.hidden){
+    tabHiddenAt = Date.now();
+    return;
+  }
+  if(tabHiddenAt === null) return;
+  var awaySec = (Date.now() - tabHiddenAt) / 1000;
+  tabHiddenAt = null;
+  lastTickTime = null;
+  if(!state) return;
+  var report = mfgSimulateOffline(awaySec);
+  state.mfgLastTickAt = Date.now();
+  if(report){
+    render();
+    showOfflineReportModal(report, awaySec);
+  }
+  scheduleAutosave();
+});
 
 /* ============================== EVENT DELEGATION ============================== */
 
