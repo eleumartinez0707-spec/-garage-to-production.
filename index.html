@@ -317,9 +317,10 @@ body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behav
 .job-mill-sheet.row-l-bracket{ background-position-y:0%; }
 .job-mill-sheet.row-bottle-opener{ background-position-y:50%; }
 .job-mill-sheet.row-nameplate{ background-position-y:100%; }
-.job-mill-v2.running .job-mill-sheet{
-  animation:millSpriteLoop 710ms steps(1, end) infinite;
-}
+/* Job art follows the real cycle progress instead of replaying forever.
+   JavaScript selects one of the eight columns from elapsedSim/totalSim,
+   so slower cycles remain readable and frame 8 stays visible at 100%. */
+.job-mill-v2.running .job-mill-sheet{ animation:none; }
 .job-mill-mist{
   position:absolute;
   left:22%;
@@ -331,9 +332,7 @@ body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behav
   background:radial-gradient(ellipse at 50% 62%, rgba(235,246,249,.22), rgba(192,222,231,.07) 42%, transparent 72%);
   mix-blend-mode:screen;
 }
-.job-mill-v2.running.wet .job-mill-mist{
-  animation:productionMistPulse 710ms steps(1, end) infinite;
-}
+.job-mill-v2.running.wet .job-mill-mist{ animation:none; }
 @keyframes productionMillLoop{
   0%       { background-position:0% 0%; }       /* 1: idle high */
   11.27%   { background-position:33.3333% 0%; } /* 2: move down */
@@ -3161,7 +3160,7 @@ function mfgFirstArticleTabHtml(tmpl, key){
   }
   return mfgSpeedRowHtml() +
     '<div class="mill-mini job-mill-view" id="mfg-mill" style="margin:.6em auto;" aria-hidden="true">' +
-      jobMachineAnimHtml(!ap.paused, !!state.upgrades.mistCoolant, key) +
+      jobMachineAnimHtml(!ap.paused, !!state.upgrades.mistCoolant, key, frac) +
       '<div class="chip-layer"></div>' +
     '</div>' +
     '<div class="bar-track" role="progressbar" aria-valuenow="' + Math.round(frac*100) + '"><div class="bar-fill" id="mfg-progress-fill" style="width:' + (frac*100) + '%"></div></div>' +
@@ -3231,7 +3230,7 @@ function mfgProductionTabHtml(tmpl, key){
     var runLabel=(ap.partsPerCycle||1)===2 ? 'Running two nested nameplates in one cycle' : 'Running batch';
     runningHtml = mfgSpeedRowHtml() +
       '<div class="mill-mini job-mill-view" id="mfg-mill" style="margin:.6em auto;" aria-hidden="true">' +
-        jobMachineAnimHtml(!ap.paused, !!state.upgrades.mistCoolant, key) +
+        jobMachineAnimHtml(!ap.paused, !!state.upgrades.mistCoolant, key, frac) +
         '<div class="chip-layer"></div>' +
       '</div>' +
       '<div class="bar-track"><div class="bar-fill" id="mfg-progress-fill" style="width:' + (frac*100) + '%"></div></div>' +
@@ -3239,7 +3238,12 @@ function mfgProductionTabHtml(tmpl, key){
   } else if(ap.paused && ap.stopReason){
     var stopCls = ap.stopReason==='complete' ? 'good' : (ap.stopReason==='crash' || ap.stopReason==='tool') ? 'bad' : 'warn';
     var crashBadge = ap.stopReason==='crash' ? '<div class="crash-badge">' + mfgBrokenToolBadge() + '</div>' : '';
-    runningHtml = crashBadge + '<p class="pill ' + stopCls + '">Stopped: ' + mfgStopReasonText(ap.stopReason) + '.</p>';
+    var completedVisual = ap.stopReason==='complete'
+      ? '<div class="mill-mini job-mill-view" style="margin:.6em auto;" aria-label="Completed part">' +
+          jobMachineAnimHtml(false, false, key, 1) +
+        '</div>'
+      : '';
+    runningHtml = completedVisual + crashBadge + '<p class="pill ' + stopCls + '">Stopped: ' + mfgStopReasonText(ap.stopReason) + '.</p>';
   }
 
   var batchHtml = '';
@@ -4691,12 +4695,16 @@ function millJobKeyFromPart(partName){
   return '';
 }
 
-function jobMachineAnimHtml(spinning, wet, jobKey){
+function jobMachineAnimHtml(spinning, wet, jobKey, progress){
   var rowClass = JOB_MILL_ROW_CLASSES[jobKey] || JOB_MILL_ROW_CLASSES.nameplate;
   var cls = 'job-mill-v2 ' + (spinning ? ('running ' + (wet ? 'wet' : 'dry')) : 'idle');
+  var frac = clamp(Number(progress)||0, 0, 1);
+  var frame = spinning ? Math.min(7, Math.floor(frac*8)) : (frac >= 1 ? 7 : 0);
+  var frameX = (frame/7*100).toFixed(4);
+  var mistOpacity = wet && spinning && frac >= .22 && frac < .78 ? (frac < .36 ? .35 : (frac < .64 ? .75 : .42)) : 0;
   return '<div class="' + cls + '">' +
-    '<div class="job-mill-sheet ' + rowClass + '"></div>' +
-    '<div class="job-mill-mist"></div>' +
+    '<div class="job-mill-sheet ' + rowClass + '" style="background-position-x:' + frameX + '%"></div>' +
+    '<div class="job-mill-mist" style="opacity:' + mistOpacity + '"></div>' +
   '</div>';
 }
 
