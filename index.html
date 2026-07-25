@@ -3238,7 +3238,7 @@ function mfgProductionTabHtml(tmpl, key){
   } else if(ap.paused && ap.stopReason){
     var stopCls = ap.stopReason==='complete' ? 'good' : (ap.stopReason==='crash' || ap.stopReason==='tool') ? 'bad' : 'warn';
     var crashBadge = ap.stopReason==='crash' ? '<div class="crash-badge">' + mfgBrokenToolBadge() + '</div>' : '';
-    var completedVisual = ap.stopReason==='complete'
+    var completedVisual = ap.stopReason!=='crash'
       ? '<div class="mill-mini job-mill-view" style="margin:.6em auto;" aria-label="Completed part">' +
           jobMachineAnimHtml(false, false, key, 1) +
         '</div>'
@@ -4699,11 +4699,14 @@ function jobMachineAnimHtml(spinning, wet, jobKey, progress){
   var rowClass = JOB_MILL_ROW_CLASSES[jobKey] || JOB_MILL_ROW_CLASSES.nameplate;
   var cls = 'job-mill-v2 ' + (spinning ? ('running ' + (wet ? 'wet' : 'dry')) : 'idle');
   var frac = clamp(Number(progress)||0, 0, 1);
-  var frame = spinning ? Math.min(7, Math.floor(frac*8)) : (frac >= 1 ? 7 : 0);
+  /* Eight left-to-right frames represent equal eighths of the real cycle.
+     At 100%, lock to frame 8 (the finished version of the selected job). */
+  var frame = frac >= 1 ? 7 : Math.floor(frac*8);
+  if(!spinning && frac < 1) frame = 0;
   var frameX = (frame/7*100).toFixed(4);
   var mistOpacity = wet && spinning && frac >= .22 && frac < .78 ? (frac < .36 ? .35 : (frac < .64 ? .75 : .42)) : 0;
   return '<div class="' + cls + '">' +
-    '<div class="job-mill-sheet ' + rowClass + '" style="background-position-x:' + frameX + '%"></div>' +
+    '<div class="job-mill-sheet ' + rowClass + '" data-job="' + jobKey + '" data-frame="' + (frame+1) + '" style="background-position-x:' + frameX + '%"></div>' +
     '<div class="job-mill-mist" style="opacity:' + mistOpacity + '"></div>' +
   '</div>';
 }
