@@ -1920,7 +1920,16 @@ function mfgFinishCycle(){
     var doneQty = ap.goodCount >= ap.qtyTarget;
     var toolDead = state.tools[tmpl.toolKey].condition <= 3;
     var outOfMaterial = ap.blanksInStock <= 0;
-    if(doneQty || toolDead || outOfMaterial || ap.batchRemaining <= 0){
+    if(tmpl.id==='mfg_nameplate' && doneQty){
+      /* One sign per order: send the completed personalized plate straight
+         to Quality instead of exposing another production batch. */
+      var finalDims=mfgRunInspectionDims(tmpl,quality);
+      var finalIssues=mfgSurfaceIssues(quality,tmpl,ap.plan);
+      ap.lastInspection={ dims:finalDims, issues:finalIssues, pass:finalDims.every(function(d){return d.pass;})&&finalIssues.length===0, quality:quality };
+      ap.stage='inspecting'; ap.paused=true; ap.stopReason='complete';
+      mfgActiveTab='inspecting';
+      toast('Custom sign complete — inspect it before shipping.', 'good');
+    } else if(doneQty || toolDead || outOfMaterial || ap.batchRemaining <= 0){
       ap.paused = true;
       ap.stopReason = doneQty ? 'complete' : toolDead ? 'tool' : outOfMaterial ? 'material' : 'batch';
     } else {
@@ -3530,7 +3539,12 @@ function loadGame(){
     }
     if(data.mfgActive){
       data.mfgActive.scores = Object.assign(mfgDefaultScores(), data.mfgActive.scores||{});
-      if(data.mfgActive.tmplKey==='nameplate') data.mfgActive.customerName=mfgNameplateFirstName(data.mfgActive.customerName);
+      if(data.mfgActive.tmplKey==='nameplate'){
+        data.mfgActive.customerName=mfgNameplateFirstName(data.mfgActive.customerName);
+        data.mfgActive.qtyTarget=1;
+        data.mfgActive.goodCount=Math.min(1,Math.max(0,data.mfgActive.goodCount||0));
+        data.mfgActive.partsPerCycle=1;
+      }
     }
     for(var parkedKey in data.mfgParked){
       var parkedJob = data.mfgParked[parkedKey];
@@ -3538,7 +3552,10 @@ function loadGame(){
         delete data.mfgParked[parkedKey];
       } else {
         parkedJob.scores = Object.assign(mfgDefaultScores(), parkedJob.scores||{});
-        if(parkedKey==='nameplate') parkedJob.customerName=mfgNameplateFirstName(parkedJob.customerName);
+        if(parkedKey==='nameplate'){
+          parkedJob.customerName=mfgNameplateFirstName(parkedJob.customerName);
+          parkedJob.qtyTarget=1; parkedJob.goodCount=Math.min(1,Math.max(0,parkedJob.goodCount||0)); parkedJob.partsPerCycle=1;
+        }
       }
     }
     if(data.mode !== 'guided' && data.mode !== 'machinist') data.mode = base.mode;
