@@ -2749,16 +2749,21 @@ var MFG_TRACE_CONTOURS = {
     { id:'contour', label:'the outer profile', plane:'top', points: function(tmpl){ return tmpl.planOutline.concat([tmpl.planOutline[0]]); } }
   ],
   nameplate: [
-    { id:'contour', label:'the outer border', plane:'top', points: function(tmpl){
-      var f = tmpl.finished;
-      return [[0,0],[f.length,0],[f.length,f.width],[0,f.width],[0,0]];
-    } },
-    { id:'engrave', label:'the engraved name', plane:'top', points: function(tmpl){
-      var f = tmpl.finished;
-      return [[f.length*0.16, f.width/2], [f.length*0.84, f.width/2]];
-    } }
+    { id:'engrave', label:'the assigned engraved name', plane:'top', points: function(tmpl, name){ return mfgNameTracePoints(tmpl, name); } }
   ]
 };
+
+/* A small single-stroke block script for the customer label. It is drawn
+   from the actual assigned first name, never the old TEXT placeholder. */
+function mfgNameTracePoints(tmpl, name){
+  var f=tmpl.finished, word=String(name||'CUSTOM').toUpperCase(), pts=[];
+  var left=f.length*.16, right=f.length*.84, y=f.width*.5, step=(right-left)/Math.max(1,word.length);
+  for(var i=0;i<word.length;i++){
+    var x=left+i*step, tall=(word.charCodeAt(i)%3)*.12*f.width;
+    pts.push([x,y+.16*f.width],[x+step*.28,y-.18*f.width-tall],[x+step*.62,y+.18*f.width],[x+step*.92,y-.12*f.width]);
+  }
+  return pts;
+}
 
 function mfgTraceGeometry(stockOpt, plane){
   var playW=280, playH=190, pad=18;
@@ -2807,7 +2812,8 @@ function mfgTraceContourHtml(tmpl, key, contourDef, plan, editable){
   var stockOpt = mfgStockOption(tmpl, plan.stockId);
   var geo = mfgTraceGeometry(stockOpt, contourDef.plane);
   var clean = state.mode === 'guided';
-  var points = contourDef.points(tmpl);
+  var assignedName=(state.mfgPrep[key]&&state.mfgPrep[key].customerName)||(mfgRuntimeJob(key)&&mfgRuntimeJob(key).customerName)||tmpl.customer;
+  var points = contourDef.points(tmpl, assignedName);
   var pxPts = points.map(function(p){ return mfgMmToPx(p, geo); });
   var guideD = 'M' + pxPts.map(function(p){ return p[0].toFixed(1)+','+p[1].toFixed(1); }).join(' L');
 
@@ -2865,7 +2871,7 @@ function mfgTraceContourHtml(tmpl, key, contourDef, plan, editable){
   }
 
   return '<div class="minigame" style="margin-bottom:.6em;">' +
-    '<p class="minigame-instruction">Trace ' + contourDef.label + ' to define the toolpath.</p>' +
+    '<p class="minigame-instruction">Trace ' + contourDef.label + (key==='nameplate'?' “'+mfgEscapeXml(assignedName)+'”':'') + ' to define the toolpath.</p>' +
     svg +
     '<div class="minigame-controls">' + (editable ? '<button type="button" data-action="mfg-trace-reset" data-key="' + key + '" data-contour="' + contourDef.id + '">Restart Trace</button>' : '') + '</div>' +
     resultHtml +
@@ -2899,7 +2905,8 @@ function mfgWireOneTrace(svg, key, contourDef){
   if(!prep || prep.stage !== 'plan') return;
   var stockOpt = mfgStockOption(tmpl, prep.plan.stockId);
   var geo = mfgTraceGeometry(stockOpt, contourDef.plane);
-  var pxPts = contourDef.points(tmpl).map(function(p){ return mfgMmToPx(p, geo); });
+  var assignedName=(prep&&prep.customerName)||(mfgRuntimeJob(key)&&mfgRuntimeJob(key).customerName)||tmpl.customer;
+  var pxPts = contourDef.points(tmpl, assignedName).map(function(p){ return mfgMmToPx(p, geo); });
   var totalLen = mfgPolylineLength(pxPts);
   var clean = state.mode === 'guided';
   var tolerance = clean ? 26 : 14;
