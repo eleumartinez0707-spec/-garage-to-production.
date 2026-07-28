@@ -228,10 +228,28 @@ table th, table td{ text-align:left; padding:.35em .4em; border-bottom:1px solid
 }
 #tab-jobs .quick-jobs-collapse summary{ color:#292820; }
 #tab-jobs .quick-jobs-collapse summary .muted{ color:#666154; }
+
+/* The main manufacturing jobs live on a framed corkboard. Each lane is a
+   workflow location, so the same traveler stays clickable as it moves. */
+#tab-jobs{ padding:clamp(.5em,1.5vw,1em); background:transparent; border:0; box-shadow:none; color:var(--text); }
+#tab-jobs::before{ display:none; }
+.job-board-heading{ color:#f5eee0; text-align:center; padding:.35em .6em .8em; text-shadow:0 2px 2px rgba(0,0,0,.55); }
+.job-board-heading h2{ color:#fff7e7; margin:0; }
+.job-board-heading .muted{ color:#dfd1ba; }
+.corkboard-frame{ position:relative; padding:clamp(.7em,1.8vw,1.1em); border:10px solid #596169; border-radius:10px; background:linear-gradient(135deg,#89929a 0%,#32383d 22%,#737c83 49%,#252a2e 78%,#666f76 100%); box-shadow:inset 0 0 0 2px #161a1d,inset 0 0 0 5px #aab1b5,0 12px 24px rgba(15,6,2,.42); }
+.corkboard-frame::before,.corkboard-frame::after{ content:""; position:absolute; z-index:2; width:11px; height:11px; border-radius:50%; background:radial-gradient(circle at 35% 30%,#eef0ed 0 12%,#70777b 18% 42%,#1c2023 48% 100%); box-shadow:0 1px 1px #000; }
+.corkboard-frame::before{ top:7px; left:7px; }.corkboard-frame::after{ right:7px; bottom:7px; }
+.corkboard{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.7em; min-height:550px; padding:1em; background:#a86a3b url("assets/jobs/corkboard-workflow.png") center/100% 100% no-repeat; border:2px solid #3f2415; box-shadow:inset 0 0 26px rgba(54,25,8,.48); }
+.corkboard-lane{ min-width:0; padding:.55em; border:1px solid transparent; background:rgba(70,35,15,.035); }
+.corkboard-lane h3{ color:#fff1d2 !important; text-align:center; margin:.05em 0 .65em; font:700 .82rem/1.2 "Courier New",monospace; letter-spacing:.1em; text-shadow:0 2px 1px rgba(45,20,6,.75); }
+.corkboard-lane .job-card{ margin-bottom:.8em; }
+.corkboard-empty{ min-height:170px; display:flex; align-items:center; justify-content:center; padding:.8em; color:#5d351e; text-align:center; border:1px dashed rgba(83,41,18,.55); background:rgba(255,224,168,.08); font-size:.82rem; font-style:italic; }
 @media (max-width:560px){
   #app main{ padding:.8em .55em 1.5em; }
-  #tab-jobs{ padding:1em .7em; }
-  #tab-jobs::before{ margin-top:-2em; }
+  #tab-jobs{ padding:.4em 0; }
+  .corkboard-frame{ border-width:7px; padding:.55em; border-radius:7px; }
+  .corkboard{ grid-template-columns:1fr; min-height:0; padding:.6em; }
+  .corkboard-lane{ min-height:160px; }
   #tab-jobs .job-card{ padding-left:1.8em; }
 }
 
@@ -508,9 +526,13 @@ body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behav
 
   <main>
     <section id="tab-jobs" class="tab-panel active" aria-label="Job board">
-      <h2>Blueprint Jobs</h2>
-      <p class="muted">Full manufacturing jobs: review the blueprint, plan the process, program it, prove a first article, then let it run.</p>
-      <div class="job-grid" id="blueprint-jobs"></div>
+      <div class="job-board-heading">
+        <h2>Shop Job Board</h2>
+        <p class="muted">Pick up a traveler, plan the work, then move it through the shop.</p>
+      </div>
+      <div class="corkboard-frame">
+        <div class="corkboard" id="blueprint-jobs" aria-label="Manufacturing job travelers"></div>
+      </div>
 
       <details class="quick-jobs-collapse">
         <summary class="section-title">Quick Jobs <span class="muted" style="font-weight:400;">(legacy jobs — no blueprint workflow)</span></summary>
@@ -2053,7 +2075,8 @@ function mfgCurrentStageKey(tmplKey){
 function renderBlueprintJobs(){
   var host = document.getElementById('blueprint-jobs');
   if(!host) return;
-  var html = state.mfgBoard.map(function(key){
+  var lanes = { incoming:[], inprocess:[], outgoing:[] };
+  state.mfgBoard.forEach(function(key){
     var tmpl = MFG_JOBS[key];
     var stageKey = mfgCurrentStageKey(key);
     var onMachine = state.mfgActive && state.mfgActive.tmplKey === key;
@@ -2065,15 +2088,28 @@ function renderBlueprintJobs(){
     var customerName = (onMachine && state.mfgActive.customerName) ||
       (parked && parked.customerName) ||
       (state.mfgPrep[key] && state.mfgPrep[key].customerName) || tmpl.customer;
-    return '<div class="card job-card">' +
+    var paper = '<div class="card job-card">' +
       '<div class="spread"><h3 style="margin:0;">' + tmpl.part + (key==='nameplate' ? ' <span class="pill" style="background:var(--accent); color:#1a1200; border-color:var(--accent);">Start Here</span>' : '') + '</h3><span class="pill ' + statusCls + '">' + statusLabel + '</span></div>' +
-      '<div class="muted jc-sub">' + customerName + ' &middot; P/N ' + tmpl.partNumber + '</div>' +
+      '<div class="muted jc-sub">' + customerName + ' &middot; P/N ' + tmpl.partNumber + (key==='lBracket' ? ' &middot; Outside Order' : '') + '</div>' +
       '<div class="jc-row"><span class="jc-price">' + fmtMoney(tmpl.basePayment) + '</span>' +
         '<span class="jc-deadline">Qty ' + tmpl.qty + '</span></div>' +
       '<div class="jc-row jc-meta">' + materialChipHtml(tmpl.materialKey) + difficultyDotsHtml(tmpl.difficulty) + '</div>' +
       '<button type="button" data-action="open-mfg-job" data-key="' + key + '">' + (stageKey==='blueprint' && !state.mfgPrep[key] && !onMachine && !parked ? 'View Blueprint' : (parked ? 'Resume Job' : 'Continue')) + '</button>' +
     '</div>';
-  }).join('');
+    // Travelers remain in Incoming until work begins; active and paused work
+    // stays In Process; a verified, ready-to-send traveler moves Outgoing.
+    var lane = (onMachine || parked || state.mfgPrep[key]) ? 'inprocess' :
+      (stageKey==='approved' ? 'outgoing' : 'incoming');
+    lanes[lane].push(paper);
+  });
+  function laneHtml(id, title, emptyText){
+    return '<section class="corkboard-lane" aria-labelledby="lane-' + id + '">' +
+      '<h3 id="lane-' + id + '">' + title + '</h3>' +
+      (lanes[id].join('') || '<div class="corkboard-empty">' + emptyText + '</div>') + '</section>';
+  }
+  var html = laneHtml('incoming','Incoming','New work orders land here.') +
+    laneHtml('inprocess','In Process','Move a traveler here when the work starts.') +
+    laneHtml('outgoing','Outgoing','Verified parts ready to send will appear here.');
   // Only touch the DOM when the rendered markup actually changes, so a
   // background job ticking (which triggers render() every frame) doesn't
   // rebuild these cards mid-click and break the buttons.
