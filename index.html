@@ -340,6 +340,21 @@ body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behav
    JavaScript selects one of the eight columns from elapsedSim/totalSim,
    so slower cycles remain readable and frame 8 stays visible at 100%. */
 .job-mill-v2.running .job-mill-sheet{ animation:none; }
+/* Nameplate uses the existing third-row artwork as its direct visual base.
+   The stock cutter in that artwork is covered, then a matching pixel cutter
+   is only drawn while it is actually traversing the current operation. */
+.nameplate-process .nameplate-static-spindle-cover{ position:absolute; z-index:2; left:38%; top:0; width:24%; height:43%; background:repeating-linear-gradient(90deg,#080b0d 0 8px,#10151b 8px 11px); }
+.nameplate-process-tool{ position:absolute; z-index:3; left:36%; top:0; width:28%; height:66%; pointer-events:none; transform-origin:50% 0; }
+.nameplate-process-tool svg{ width:100%; height:100%; overflow:visible; image-rendering:pixelated; }
+.nameplate-process.running .nameplate-process-tool.drill{ animation:nameplateDrillPass 1.9s steps(1,end) infinite; }
+.nameplate-process.running .nameplate-process-tool.engrave{ animation:nameplateEngravePass 1.15s steps(1,end) infinite; }
+.nameplate-process.running .nameplate-process-tool.contour{ animation:nameplateContourPass 1.65s steps(1,end) infinite; }
+@keyframes nameplateDrillPass{ 0%,100%{transform:translate(-29%,0)} 25%{transform:translate(29%,0)} 50%{transform:translate(29%,12%)} 75%{transform:translate(-29%,12%)} }
+@keyframes nameplateEngravePass{ 0%,100%{transform:translate(-26%,8%)} 50%{transform:translate(26%,8%)} }
+@keyframes nameplateContourPass{ 0%,100%{transform:translate(-31%,-3%)} 25%{transform:translate(31%,-3%)} 50%{transform:translate(31%,17%)} 75%{transform:translate(-31%,17%)} }
+.nameplate-engraved-name{ position:absolute; z-index:4; left:27%; right:27%; top:67%; padding:1px 3px; overflow:hidden; white-space:nowrap; text-align:center; color:#252a2d; background:#a4a7af; border:1px solid #d7dde5; font:700 clamp(8px,2.5vw,15px)/1 "Courier New",monospace; text-shadow:1px 1px 0 rgba(238,240,243,.35); }
+.nameplate-process.engraving .nameplate-engraved-name{ clip-path:inset(0 calc((1 - var(--engrave-reveal))*100%) 0 0); }
+.nameplate-process.finished .nameplate-engraved-name{ clip-path:none; }
 .job-mill-mist{
   position:absolute;
   left:22%;
@@ -1393,12 +1408,8 @@ function mfgProgramSeconds(tmpl, plan){
 /* Name directory used for Custom Name Plate engraving. A fresh name is
    selected every time a new order is picked up (see mfgStartPrep). */
 var NAMEPLATE_NAME_DIRECTORY = [
-  'Bartholomew Wigglesworth', 'Debbie Fizzlebottom', 'Chad Sparklepants',
-  'Nigel P. Snugglesworth', 'Doris McWaffle', 'Gary Fartleberry',
-  'Trixie Bumblesnout', 'Reginald Cheddarton', 'Mildred Quacklebush',
-  'Chester Boopington', 'Gertrude Wobblebum', 'Dexter Snickerdoodle',
-  'Priscilla Tinklebell', 'Otis Grumblesworth', 'Wanda Pickleman',
-  'Barnaby Custardface'
+  'Biscuit', 'Pickle', 'Nugget', 'Waffles', 'Beans', 'Mochi',
+  'Sprout', 'Doodle', 'Puddles', 'Bubbles', 'Muffin', 'Rascal'
 ];
 function mfgRandomNameplateCustomer(){
   return NAMEPLATE_NAME_DIRECTORY[Math.floor(Math.random()*NAMEPLATE_NAME_DIRECTORY.length)];
@@ -4733,6 +4744,7 @@ function millJobKeyFromPart(partName){
 }
 
 function jobMachineAnimHtml(spinning, wet, jobKey, progress){
+  if(jobKey === 'nameplate') return nameplateMachineAnimHtml(spinning, wet, progress);
   var rowClass = JOB_MILL_ROW_CLASSES[jobKey] || JOB_MILL_ROW_CLASSES.nameplate;
   var cls = 'job-mill-v2 ' + (spinning ? ('running ' + (wet ? 'wet' : 'dry')) : 'idle');
   var frac = clamp(Number(progress)||0, 0, 1);
@@ -4748,11 +4760,39 @@ function jobMachineAnimHtml(spinning, wet, jobKey, progress){
   '</div>';
 }
 
+function nameplateMachineAnimHtml(spinning, wet, progress){
+  var frac = clamp(Number(progress)||0, 0, 1);
+  var phase = frac < .35 ? 'drilling' : (frac < .60 ? 'engraving' : (frac < 1 ? 'contouring' : 'finished'));
+  /* The existing third-row frames are intentionally reused: raw stock,
+     two holes, four holes, then tabbed contour through the finished plate. */
+  var frame = frac >= 1 ? 7 : (frac < .10 ? 0 : (frac < .20 ? 1 : (frac < .60 ? 2 : Math.min(6,3+Math.floor((frac-.60)/.40*4)))));
+  var frameX = (frame/7*100).toFixed(4);
+  var customer = (state.mfgActive && state.mfgActive.tmplKey==='nameplate' && state.mfgActive.customerName) || 'CUSTOM NAME';
+  var tool = '';
+  if(spinning && frac > .025 && frac < 1){
+    var toolClass = phase==='drilling' ? 'drill' : (phase==='engraving' ? 'engrave' : 'contour');
+    var bit = phase==='drilling' ? '<path d="M38 116 l4 14 4-14z" fill="#d7dde5"/><path d="M40 116 l2 14" stroke="#252a30" stroke-width="2"/>' : '<rect x="38" y="112" width="8" height="20" fill="#c7d0da"/><path d="M38 114 l8 16M46 114 l-8 16" stroke="#2a3038" stroke-width="2"/>';
+    tool = '<div class="nameplate-process-tool '+toolClass+'"><svg viewBox="0 0 84 140" shape-rendering="crispEdges" aria-hidden="true">' +
+      '<rect x="20" y="0" width="44" height="24" fill="#747d88"/><rect x="20" y="0" width="44" height="5" fill="#b7c0c9"/>' +
+      '<rect x="28" y="24" width="28" height="28" fill="#4b535e"/><rect x="31" y="31" width="22" height="18" fill="#68717c"/>' +
+      '<rect x="34" y="51" width="16" height="22" fill="#222830"/><rect x="36" y="72" width="12" height="42" fill="#7e8792"/><rect x="38" y="72" width="4" height="42" fill="#d7dde5"/>' + bit +
+      '<circle cx="42" cy="130" r="3" fill="#e8eef2" opacity=".65"/></svg></div>';
+  }
+  var reveal = phase==='engraving' ? clamp((frac-.35)/.25, .08, 1) : (frac>.60 ? 1 : 0);
+  var cls = 'job-mill-v2 nameplate-process '+phase+(spinning?' running':' idle');
+  var mistOpacity = wet && spinning && frac >= .12 && frac < .96 ? .42 : 0;
+  return '<div class="'+cls+'" style="--engrave-reveal:'+reveal.toFixed(3)+'">' +
+    '<div class="job-mill-sheet row-nameplate" data-job="nameplate" data-frame="'+(frame+1)+'" style="background-position-x:'+frameX+'%"></div>' +
+    '<div class="nameplate-static-spindle-cover"></div>' + tool +
+    (frac >= .35 ? '<div class="nameplate-engraved-name">'+mfgEscapeXml(String(customer).toUpperCase())+'</div>' : '') +
+    '<div class="job-mill-mist" style="opacity:'+mistOpacity+'"></div></div>';
+}
+
 /* Detailed 4x2 sprite sheet used only by the Production tab. Each cell is
    the same fixed camera view, so the cabinet stays visually locked while
    the spindle runs through the eight machining poses. */
-function productionMachineAnimHtml(spinning, wet, jobKey){
-  if(JOB_MILL_ROW_CLASSES[jobKey]) return jobMachineAnimHtml(spinning, wet, jobKey);
+function productionMachineAnimHtml(spinning, wet, jobKey, progress){
+  if(JOB_MILL_ROW_CLASSES[jobKey]) return jobMachineAnimHtml(spinning, wet, jobKey, progress);
   var cls = 'production-mill-v2 ' + (spinning ? ('running ' + (wet ? 'wet' : 'dry')) : 'idle');
   return '<div class="' + cls + '">' +
     '<div class="production-mill-sheet"></div>' +
@@ -4760,8 +4800,8 @@ function productionMachineAnimHtml(spinning, wet, jobKey){
   '</div>';
 }
 
-function buildProductionMillWidget(spinning, hudOpts, jobKey){
-  return '<div class="mill-scene">' + productionMachineAnimHtml(spinning, hudOpts && hudOpts.coolantOn, jobKey) + '</div>' +
+function buildProductionMillWidget(spinning, hudOpts, jobKey, progress){
+  return '<div class="mill-scene">' + productionMachineAnimHtml(spinning, hudOpts && hudOpts.coolantOn, jobKey, progress) + '</div>' +
     buildMillHud(hudOpts) + '<div class="chip-layer"></div>';
 }
 
@@ -4794,7 +4834,11 @@ function renderProduction(){
     // Rebuild the mill widget only when its visual state changes, so the
     // spindle animation and chips aren't destroyed on every frame while a
     // blueprint job machines in the background.
-    var millSig = mfgA ? ('mfg|'+mfgA.tmplKey+'|'+(mfgMachining?'run':'idle')+'|'+MFG_JOBS[mfgA.tmplKey].materialKey) : 'none';
+    var mfgProgress = mfgA ? clamp(mfgA.elapsedSim / Math.max(1, mfgA.totalSim), 0, 1) : 0;
+    /* Rebuild only when the visible sprite phase changes. The CSS tool motion
+       continues between those updates, while artwork follows real progress. */
+    var mfgProgressFrame = Math.min(8, Math.floor(mfgProgress * 8));
+    var millSig = mfgA ? ('mfg|'+mfgA.tmplKey+'|'+(mfgMachining?'run':'idle')+'|'+MFG_JOBS[mfgA.tmplKey].materialKey+'|'+mfgProgressFrame) : 'none';
     if(mm && idle.dataset.millSig !== millSig){
       idle.dataset.millSig = millSig;
       if(mfgA){
@@ -4806,7 +4850,7 @@ function renderProduction(){
           rpm: null, feed: null,
           toolShape: 'endmill', workholding: 'vise',
           coolantOn: !!state.upgrades.mistCoolant
-        }, mfgA.tmplKey);
+        }, mfgA.tmplKey, mfgProgress);
       } else {
         mm.innerHTML = buildProductionMillWidget(false, idleHudOpts());
       }
