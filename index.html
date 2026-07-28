@@ -356,8 +356,8 @@ body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behav
 /* Nameplate uses the existing third-row artwork as its direct visual base.
    The stock cutter in that artwork is covered, then a matching pixel cutter
    is only drawn while it is actually traversing the current operation. */
-.nameplate-process .nameplate-static-spindle-cover{ position:absolute; z-index:2; left:38%; top:0; width:24%; height:43%; background:repeating-linear-gradient(90deg,#080b0d 0 8px,#10151b 8px 11px); }
-.nameplate-process-tool{ position:absolute; z-index:3; left:36%; top:0; width:28%; height:66%; pointer-events:none; transform-origin:50% 0; }
+.nameplate-process .nameplate-static-spindle-cover{ display:none; }
+.nameplate-process-tool{ position:absolute; z-index:5; left:29%; top:0; width:42%; height:72%; pointer-events:none; transform-origin:50% 0; filter:drop-shadow(0 2px 1px #050708); }
 .nameplate-process-tool svg{ width:100%; height:100%; overflow:visible; image-rendering:pixelated; }
 .nameplate-process.running .nameplate-process-tool.drill{ animation:nameplateDrillPass 1.9s steps(1,end) infinite; }
 .nameplate-process.running .nameplate-process-tool.engrave{ animation:nameplateEngravePass 1.15s steps(1,end) infinite; }
@@ -368,6 +368,7 @@ body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behav
 .nameplate-engraved-name{ position:absolute; z-index:4; left:27%; right:27%; top:67%; padding:1px 3px; overflow:hidden; white-space:nowrap; text-align:center; color:#252a2d; background:#a4a7af; border:1px solid #d7dde5; font:700 clamp(8px,2.5vw,15px)/1 "Courier New",monospace; text-shadow:1px 1px 0 rgba(238,240,243,.35); }
 .nameplate-process.engraving .nameplate-engraved-name{ clip-path:inset(0 calc((1 - var(--engrave-reveal))*100%) 0 0); }
 .nameplate-process.finished .nameplate-engraved-name{ clip-path:none; }
+.nameplate-stage-readout{ position:absolute; z-index:6; left:5%; right:5%; bottom:3%; padding:2px 4px; color:#d9fbff; background:rgba(2,9,12,.78); border:1px solid #4c7380; text-align:center; font:700 clamp(7px,2vw,11px)/1 "Courier New",monospace; letter-spacing:.06em; }
 .vise-failure-scene{ position:absolute; inset:0; display:grid; place-items:center; overflow:hidden; background:#10151b; }
 .vise-failure-sheet{ width:70%; height:31%; background:linear-gradient(#c0c5ca,#777f89); border:3px solid #e2e6e9; box-shadow:0 0 0 22px #323940,0 0 0 28px #171b1f; transform-origin:center; animation:viseBowCrash 1.7s steps(1,end) forwards; }
 .vise-failure-scene::before,.vise-failure-scene::after{ content:""; position:absolute; top:40%; width:20%; height:25%; background:linear-gradient(#616a73,#20262c); border:3px solid #0a0d0f; z-index:2; }
@@ -1435,6 +1436,9 @@ var NAMEPLATE_NAME_DIRECTORY = [
 ];
 function mfgRandomNameplateCustomer(){
   return NAMEPLATE_NAME_DIRECTORY[Math.floor(Math.random()*NAMEPLATE_NAME_DIRECTORY.length)];
+}
+function mfgNameplateFirstName(name){
+  return String(name||'CUSTOM').trim().split(/\s+/)[0].replace(/[^A-Za-z-]/g,'') || 'CUSTOM';
 }
 
 function mfgStartPrep(tmplKey){
@@ -3519,15 +3523,22 @@ function loadGame(){
     if(!isNum(data.mfgLastTickAt)) data.mfgLastTickAt = Date.now();
     for(var pk in data.mfgPrep){
       var pr = data.mfgPrep[pk];
-      if(pr && typeof pr === 'object') pr.scores = Object.assign(mfgDefaultScores(), pr.scores||{});
+      if(pr && typeof pr === 'object'){
+        pr.scores = Object.assign(mfgDefaultScores(), pr.scores||{});
+        if(pk==='nameplate') pr.customerName=mfgNameplateFirstName(pr.customerName);
+      }
     }
-    if(data.mfgActive) data.mfgActive.scores = Object.assign(mfgDefaultScores(), data.mfgActive.scores||{});
+    if(data.mfgActive){
+      data.mfgActive.scores = Object.assign(mfgDefaultScores(), data.mfgActive.scores||{});
+      if(data.mfgActive.tmplKey==='nameplate') data.mfgActive.customerName=mfgNameplateFirstName(data.mfgActive.customerName);
+    }
     for(var parkedKey in data.mfgParked){
       var parkedJob = data.mfgParked[parkedKey];
       if(!MFG_JOBS[parkedKey] || !parkedJob || typeof parkedJob !== 'object'){
         delete data.mfgParked[parkedKey];
       } else {
         parkedJob.scores = Object.assign(mfgDefaultScores(), parkedJob.scores||{});
+        if(parkedKey==='nameplate') parkedJob.customerName=mfgNameplateFirstName(parkedJob.customerName);
       }
     }
     if(data.mode !== 'guided' && data.mode !== 'machinist') data.mode = base.mode;
@@ -4871,7 +4882,7 @@ function nameplateMachineAnimHtml(spinning, wet, progress){
      two holes, four holes, then tabbed contour through the finished plate. */
   var frame = frac >= 1 ? 7 : (frac < .10 ? 0 : (frac < .20 ? 1 : (frac < .60 ? 2 : Math.min(6,3+Math.floor((frac-.60)/.40*4)))));
   var frameX = (frame/7*100).toFixed(4);
-  var customer = (state.mfgActive && state.mfgActive.tmplKey==='nameplate' && state.mfgActive.customerName) || 'CUSTOM NAME';
+  var customer = mfgNameplateFirstName((state.mfgActive && state.mfgActive.tmplKey==='nameplate' && state.mfgActive.customerName) || 'CUSTOM');
   var tool = '';
   if(spinning && frac > .025 && frac < 1){
     var toolClass = phase==='drilling' ? 'drill' : (phase==='engraving' ? 'engrave' : 'contour');
@@ -4885,10 +4896,12 @@ function nameplateMachineAnimHtml(spinning, wet, progress){
   var reveal = phase==='engraving' ? clamp((frac-.35)/.25, .08, 1) : (frac>.60 ? 1 : 0);
   var cls = 'job-mill-v2 nameplate-process '+phase+(spinning?' running':' idle');
   var mistOpacity = wet && spinning && frac >= .12 && frac < .96 ? .42 : 0;
+  var stageLabel = phase==='drilling' ? 'DRILLING 4 MOUNTING HOLES' : (phase==='engraving' ? 'ENGRAVING '+customer.toUpperCase() : (phase==='contouring' ? 'CONTOUR CUT — HOLDING TABS' : 'FINISHED — '+customer.toUpperCase()));
   return '<div class="'+cls+'" style="--engrave-reveal:'+reveal.toFixed(3)+'">' +
     '<div class="job-mill-sheet row-nameplate" data-job="nameplate" data-frame="'+(frame+1)+'" style="background-position-x:'+frameX+'%"></div>' +
     '<div class="nameplate-static-spindle-cover"></div>' + tool +
     (frac >= .35 ? '<div class="nameplate-engraved-name">'+mfgEscapeXml(String(customer).toUpperCase())+'</div>' : '') +
+    '<div class="nameplate-stage-readout">'+stageLabel+'</div>' +
     '<div class="job-mill-mist" style="opacity:'+mistOpacity+'"></div></div>';
 }
 
