@@ -360,6 +360,10 @@ body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behav
 .nameplate-art-sheet{ position:absolute; inset:0; background:url("assets/mill/nameplate-process-bases.png") no-repeat; background-size:400% 200%; image-rendering:pixelated; }
 .nameplate-process-tool{ position:absolute; z-index:5; left:29%; top:0; width:42%; height:72%; pointer-events:none; transform-origin:50% 0; filter:drop-shadow(0 2px 1px #050708); }
 .nameplate-process-tool svg{ width:100%; height:100%; overflow:visible; image-rendering:pixelated; }
+.nameplate-real-cutter{ position:absolute; z-index:5; inset:0; pointer-events:none; background:url("assets/mill/nameplate-process-frames.png") no-repeat; background-size:400% 200%; clip-path:inset(0 25% 36% 25%); transform-origin:50% 0; }
+.nameplate-process.running .nameplate-real-cutter.drill{ animation:nameplateDrillPass 1.9s steps(1,end) infinite; }
+.nameplate-process.running .nameplate-real-cutter.engrave{ animation:nameplateEngravePass 1.15s steps(1,end) infinite; }
+.nameplate-process.running .nameplate-real-cutter.contour{ animation:nameplateContourPass 1.65s steps(1,end) infinite; }
 .nameplate-process.running .nameplate-process-tool.drill{ animation:nameplateDrillPass 1.9s steps(1,end) infinite; }
 .nameplate-process.running .nameplate-process-tool.engrave{ animation:nameplateEngravePass 1.15s steps(1,end) infinite; }
 .nameplate-process.running .nameplate-process-tool.contour{ animation:nameplateContourPass 1.65s steps(1,end) infinite; }
@@ -4931,7 +4935,9 @@ function nameplateMachineAnimHtml(spinning, wet, progress){
   if(spinning && frac > .025 && frac < 1){
     var toolClass = phase==='drilling' ? 'drill' : (phase==='engraving' ? 'engrave' : 'contour');
     var bit = phase==='drilling' ? '<path d="M38 116 l4 14 4-14z" fill="#d7dde5"/><path d="M40 116 l2 14" stroke="#252a30" stroke-width="2"/>' : '<rect x="38" y="112" width="8" height="20" fill="#c7d0da"/><path d="M38 114 l8 16M46 114 l-8 16" stroke="#2a3038" stroke-width="2"/>';
-    tool = '<div class="nameplate-process-tool '+toolClass+'"><svg viewBox="0 0 84 140" shape-rendering="crispEdges" aria-hidden="true">' +
+    var cutterPos=(frame%4/3*100).toFixed(4)+'% '+(frame<4?'0':'100')+'%';
+    tool = '<div class="nameplate-real-cutter '+toolClass+'" style="background-position:'+cutterPos+'"></div>' +
+      '<div class="nameplate-process-tool '+toolClass+'"><svg viewBox="0 0 84 140" shape-rendering="crispEdges" aria-hidden="true">' +
       '<rect x="20" y="0" width="44" height="24" fill="#747d88"/><rect x="20" y="0" width="44" height="5" fill="#b7c0c9"/>' +
       '<rect x="28" y="24" width="28" height="28" fill="#4b535e"/><rect x="31" y="31" width="22" height="18" fill="#68717c"/>' +
       '<rect x="34" y="51" width="16" height="22" fill="#222830"/><rect x="36" y="72" width="12" height="42" fill="#7e8792"/><rect x="38" y="72" width="4" height="42" fill="#d7dde5"/>' + bit +
