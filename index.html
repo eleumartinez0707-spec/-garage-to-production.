@@ -1724,6 +1724,18 @@ function mfgTightenVise(tmplKey){
   scheduleAutosave();
   return true;
 }
+function mfgStartOverFailedJob(tmplKey){
+  var ap=state.mfgActive;
+  if(!ap || ap.tmplKey!==tmplKey || ap.stopReason!=='crash') return false;
+  /* The crash already applied its scrap cost. Remove only the failed order;
+     do not call any scrap routine again. Opening the job creates a fresh
+     prep, including a new one-word nameplate customer. */
+  state.mfgActive=null;
+  delete state.mfgPrep[tmplKey];
+  if(state.mfgParked) delete state.mfgParked[tmplKey];
+  scheduleAutosave();
+  return true;
+}
 function mfgParkActiveJob(){
   var ap=state.mfgActive;
   if(!ap || state.activeProduction) return false;
@@ -3320,7 +3332,8 @@ function mfgFirstArticleTabHtml(tmpl, key){
       '<button type="button" class="primary" style="width:100%;" data-action="mfg-rerun" data-key="' + key + '">Re-run First Article</button>';
   }
   if(ap.paused && ap.stopReason==='crash' && ap.lastInspection && ap.lastInspection.bowedPlate){
-    return viseFailureAnimHtml(tmpl) + '<p class="pill bad">'+mfgEscapeXml((ap.lastInspection.issues||[])[0]||'The sheet bowed in the vise.')+'</p>';
+    return viseFailureAnimHtml(tmpl) + '<p class="pill bad">'+mfgEscapeXml((ap.lastInspection.issues||[])[0]||'The sheet bowed in the vise.')+'</p>' +
+      '<button type="button" class="primary" style="width:100%;min-height:52px;margin-top:.7em;" data-action="mfg-start-over" data-key="'+key+'">Start Over</button>';
   }
   return mfgSpeedRowHtml() +
     '<div class="mill-mini job-mill-view" id="mfg-mill" style="margin:.6em auto;" aria-hidden="true">' +
@@ -5976,6 +5989,15 @@ document.addEventListener('click', function(e){
     case 'mfg-scrap-restart':
       withLock(function(){
         if(mfgScrapAndRestart()){ mfgActiveTab = 'setup'; renderMfgModalContent(); }
+      });
+      break;
+    case 'mfg-start-over':
+      withLock(function(){
+        var soKey=el.getAttribute('data-key');
+        if(mfgStartOverFailedJob(soKey)){
+          openMfgModal(soKey);
+          toast(soKey==='nameplate' ? 'Fresh custom sign order loaded.' : 'Fresh order loaded.', 'good');
+        }
       });
       break;
     case 'mfg-bent-replan':
