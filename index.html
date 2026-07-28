@@ -366,9 +366,12 @@ body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behav
 @keyframes nameplateDrillPass{ 0%,100%{transform:translate(-29%,0)} 25%{transform:translate(29%,0)} 50%{transform:translate(29%,12%)} 75%{transform:translate(-29%,12%)} }
 @keyframes nameplateEngravePass{ 0%,100%{transform:translate(-26%,8%)} 50%{transform:translate(26%,8%)} }
 @keyframes nameplateContourPass{ 0%,100%{transform:translate(-31%,-3%)} 25%{transform:translate(31%,-3%)} 50%{transform:translate(31%,17%)} 75%{transform:translate(-31%,17%)} }
-.nameplate-engraved-name{ position:absolute; z-index:4; left:27%; right:27%; top:67%; padding:1px 3px; overflow:hidden; white-space:nowrap; text-align:center; color:#252a2d; background:#a4a7af; border:1px solid #d7dde5; font:700 clamp(8px,2.5vw,15px)/1 "Courier New",monospace; text-shadow:1px 1px 0 rgba(238,240,243,.35); }
-.nameplate-process.engraving .nameplate-engraved-name{ clip-path:inset(0 calc((1 - var(--engrave-reveal))*100%) 0 0); }
-.nameplate-process.finished .nameplate-engraved-name{ clip-path:none; }
+/* Generated per-order engraving layer: it replaces the reference word in
+   the plate metal itself, never as a paper/white label. */
+.nameplate-engraved-metal{ position:absolute; z-index:4; left:16%; right:16%; top:59%; height:24%; overflow:hidden; }
+.nameplate-engraved-metal svg{ width:100%; height:100%; display:block; }
+.nameplate-process.engraving .nameplate-engraved-metal{ clip-path:inset(0 calc((1 - var(--engrave-reveal))*100%) 0 0); }
+.nameplate-process.finished .nameplate-engraved-metal,.nameplate-process.contouring .nameplate-engraved-metal{ clip-path:none; }
 .nameplate-stage-readout{ position:absolute; z-index:6; left:5%; right:5%; bottom:3%; padding:2px 4px; color:#d9fbff; background:rgba(2,9,12,.78); border:1px solid #4c7380; text-align:center; font:700 clamp(7px,2vw,11px)/1 "Courier New",monospace; letter-spacing:.06em; }
 .vise-failure-scene{ position:absolute; inset:0; display:grid; place-items:center; overflow:hidden; background:#10151b; }
 .vise-failure-sheet{ width:70%; height:31%; background:linear-gradient(#c0c5ca,#777f89); border:3px solid #e2e6e9; box-shadow:0 0 0 22px #323940,0 0 0 28px #171b1f; transform-origin:center; animation:viseBowCrash 1.7s steps(1,end) forwards; }
@@ -4907,6 +4910,13 @@ function jobMachineAnimHtml(spinning, wet, jobKey, progress){
   '</div>';
 }
 
+function nameplateEngravingLayerHtml(customer){
+  var safe=mfgEscapeXml(String(customer).toUpperCase());
+  /* This SVG is composited inside the physical plate bounds, masking only
+     the reusable reference letters before engraving the assigned first name. */
+  return '<div class="nameplate-engraved-metal"><svg viewBox="0 0 100 40" preserveAspectRatio="none" aria-label="Engraved '+safe+'"><rect x="0" y="4" width="100" height="32" rx="2" fill="#9fa198"/><text x="50" y="27" fill="#242724" stroke="#d1d3c8" stroke-width=".35" paint-order="stroke" font-family="Courier New,monospace" font-size="18" font-weight="bold" text-anchor="middle" textLength="84" lengthAdjust="spacingAndGlyphs">'+safe+'</text></svg></div>';
+}
+
 function nameplateMachineAnimHtml(spinning, wet, progress){
   var frac = clamp(Number(progress)||0, 0, 1);
   var phase = frac < .35 ? 'drilling' : (frac < .60 ? 'engraving' : (frac < 1 ? 'contouring' : 'finished'));
@@ -4933,7 +4943,8 @@ function nameplateMachineAnimHtml(spinning, wet, progress){
   var stageLabel = phase==='drilling' ? 'DRILLING 4 MOUNTING HOLES' : (phase==='engraving' ? 'ENGRAVING '+customer.toUpperCase() : (phase==='contouring' ? 'CONTOUR CUT — HOLDING TABS' : 'FINISHED — '+customer.toUpperCase()));
   return '<div class="'+cls+'" style="--engrave-reveal:'+reveal.toFixed(3)+'">' +
     '<div class="nameplate-art-sheet" data-frame="'+(frame+1)+'" style="background-position:'+(frame%4/3*100).toFixed(4)+'% '+(frame<4?'0':'100')+'%"></div>' +
-    (frac >= .35 ? '<div class="nameplate-engraved-name">'+mfgEscapeXml(String(customer).toUpperCase())+'</div>' : '') +
+    tool +
+    (frac >= .35 ? nameplateEngravingLayerHtml(customer) : '') +
     '<div class="nameplate-stage-readout">'+stageLabel+'</div>' +
     '<div class="job-mill-mist" style="opacity:'+mistOpacity+'"></div></div>';
 }
