@@ -244,6 +244,19 @@ table th, table td{ text-align:left; padding:.35em .4em; border-bottom:1px solid
 .corkboard-lane h3{ color:#fff1d2 !important; white-space:nowrap; overflow-wrap:normal; word-break:normal; text-align:center; margin:.05em 0 .65em; font:700 .82rem/1.2 "Courier New",monospace; letter-spacing:.1em; text-shadow:0 2px 1px rgba(45,20,6,.75); }
 .corkboard-lane .job-card{ margin-bottom:.8em; }
 .corkboard-empty{ min-height:170px; display:flex; align-items:center; justify-content:center; padding:.8em; color:#5d351e; text-align:center; border:1px dashed rgba(83,41,18,.55); background:rgba(255,224,168,.08); font-size:.82rem; font-style:italic; }
+/* A small shop laptop sits beside the board. It is deliberately a simple
+   in-world marketplace, not a copy of a real service. */
+.marketplace-workbench{ display:flex; justify-content:flex-end; margin-top:1em; }
+.marketplace-laptop{ width:min(100%,340px); padding:10px 12px 15px; background:linear-gradient(135deg,#737b80,#272d31 52%,#15191c); border:4px solid #121619; border-radius:10px 10px 4px 4px; box-shadow:0 7px 0 #15100b,0 13px 20px rgba(19,8,2,.38); }
+.marketplace-laptop::after{ content:""; display:block; height:12px; margin:9px -24px -22px; background:linear-gradient(#9aa0a2,#4b5154 45%,#22272a); border:3px solid #15191c; border-radius:2px 2px 9px 9px; box-shadow:0 4px 0 #1a1009; }
+.marketplace-screen{ min-height:190px; padding:.8em; background:radial-gradient(circle at 80% 10%,rgba(85,209,255,.14),transparent 32%),#0b202b; border:5px solid #070a0c; border-radius:4px; color:#d4f4ff; font-family:"Courier New",monospace; box-shadow:inset 0 0 0 2px #38515a; }
+.marketplace-screen h3{ margin:0 0 .25em; color:#7ee4ff !important; font:700 .84rem/1.2 "Courier New",monospace; letter-spacing:.07em; }
+.marketplace-screen p{ margin:.35em 0; font-size:.78rem; color:#b9d2d9; }
+.marketplace-order{ margin-top:.65em; padding:.6em; background:rgba(24,59,71,.8); border:1px solid #5bbbd4; border-radius:3px; }
+.marketplace-order strong{ display:block; color:#fff1c7; font-size:.95rem; }
+.marketplace-order .market-price{ color:#7df0a4; font-weight:700; }
+.marketplace-screen button{ width:100%; margin-top:.6em; background:#45bceb; color:#061822; border-color:#9beaff; box-shadow:0 2px 0 #143c49; }
+.marketplace-screen button:hover{ background:#7bd6f6; }
 @media (max-width:560px){
   #app main{ padding:.8em .55em 1.5em; }
   #tab-jobs{ padding:.4em 0; }
@@ -355,6 +368,12 @@ body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behav
 .nameplate-engraved-name{ position:absolute; z-index:4; left:27%; right:27%; top:67%; padding:1px 3px; overflow:hidden; white-space:nowrap; text-align:center; color:#252a2d; background:#a4a7af; border:1px solid #d7dde5; font:700 clamp(8px,2.5vw,15px)/1 "Courier New",monospace; text-shadow:1px 1px 0 rgba(238,240,243,.35); }
 .nameplate-process.engraving .nameplate-engraved-name{ clip-path:inset(0 calc((1 - var(--engrave-reveal))*100%) 0 0); }
 .nameplate-process.finished .nameplate-engraved-name{ clip-path:none; }
+.vise-failure-scene{ position:absolute; inset:0; display:grid; place-items:center; overflow:hidden; background:#10151b; }
+.vise-failure-sheet{ width:70%; height:31%; background:linear-gradient(#c0c5ca,#777f89); border:3px solid #e2e6e9; box-shadow:0 0 0 22px #323940,0 0 0 28px #171b1f; transform-origin:center; animation:viseBowCrash 1.7s steps(1,end) forwards; }
+.vise-failure-scene::before,.vise-failure-scene::after{ content:""; position:absolute; top:40%; width:20%; height:25%; background:linear-gradient(#616a73,#20262c); border:3px solid #0a0d0f; z-index:2; }
+.vise-failure-scene::before{ left:3%; }.vise-failure-scene::after{ right:3%; }
+.vise-failure-label{ position:absolute; z-index:3; bottom:10%; color:#ff7b72; font:700 .8rem "Courier New",monospace; text-align:center; }
+@keyframes viseBowCrash{ 0%,35%{transform:perspective(160px) rotateX(0deg); } 65%{transform:perspective(160px) rotateX(29deg) scaleX(.94); } 100%{transform:perspective(160px) rotateX(29deg) scaleX(.94); filter:saturate(.5); } }
 .job-mill-mist{
   position:absolute;
   left:22%;
@@ -549,6 +568,9 @@ body.mc-gesture-lock{ position:fixed; inset:0; overflow:hidden; overscroll-behav
       <div class="corkboard-frame">
         <div class="corkboard" id="blueprint-jobs" aria-label="Manufacturing job travelers"></div>
       </div>
+      <aside class="marketplace-workbench" aria-label="Outside job marketplace">
+        <div class="marketplace-laptop"><div class="marketplace-screen" id="marketplace-laptop"></div></div>
+      </aside>
 
       <details class="quick-jobs-collapse">
         <summary class="section-title">Quick Jobs <span class="muted" style="font-weight:400;">(legacy jobs — no blueprint workflow)</span></summary>
@@ -768,12 +790,12 @@ var MILESTONE = { cash:25000, reputation:100, jobsCompleted:10, tier2Completed:2
    ============================================================ */
 
 var WORKHOLDING = {
-  standardJaws: { key:'standardJaws', label:'Standard Vise Jaws',      rigidity:0.70, marksRisk:0.35, unlockedBy:null },
-  parallels:    { key:'parallels',    label:'Vise + Parallels',        rigidity:0.78, marksRisk:0.30, unlockedBy:null },
-  clamps:       { key:'clamps',       label:'Toe Clamps',              rigidity:0.60, marksRisk:0.10, unlockedBy:null },
+  standardJaws: { key:'standardJaws', label:'Vise',                    rigidity:0.70, marksRisk:0.35, unlockedBy:null },
+  parallels:    { key:'parallels',    label:'Vise',                    rigidity:0.78, marksRisk:0.30, unlockedBy:null },
+  clamps:       { key:'clamps',       label:'Clamps',                  rigidity:0.60, marksRisk:0.10, unlockedBy:null },
   softJaws:     { key:'softJaws',     label:'Soft Jaws',               rigidity:0.85, marksRisk:0.04, unlockedBy:'workholding' },
   fixturePlate: { key:'fixturePlate', label:'Fixture Plate',           rigidity:0.92, marksRisk:0.02, unlockedBy:'workholding' },
-  tabs:         { key:'tabs',         label:'Machined Tabs',           rigidity:0.95, marksRisk:0.00, unlockedBy:null }
+  tabs:         { key:'tabs',         label:'Toe Clamps',              rigidity:0.95, marksRisk:0.00, unlockedBy:null }
 };
 
 /* In this game's plate workflow, toe clamps and machined tabs represent the
@@ -1436,7 +1458,10 @@ function mfgStartPrep(tmplKey){
     plan: plan, program: mfgDefaultProgram(tmpl),
     programTimeRemaining: 0, programTotalSeconds: 0,
     scores: scores,
-    customerName: tmplKey === 'nameplate' ? mfgRandomNameplateCustomer() : tmpl.customer
+    customerName: tmplKey === 'nameplate' ? mfgRandomNameplateCustomer() : tmpl.customer,
+    /* Every one-off sign must load its freshly assigned name before its
+       reusable machining program can be generated. */
+    nameProgrammed: tmplKey !== 'nameplate'
   };
   state.mfgPrep[tmplKey] = prep;
   scheduleAutosave();
@@ -1482,6 +1507,7 @@ function mfgUnloadFromSetup(tmplKey){
 function mfgBeginProgramming(tmplKey){
   var prep = state.mfgPrep[tmplKey];
   if(!prep || prep.stage !== 'plan') return false;
+  if(tmplKey === 'nameplate' && !prep.nameProgrammed) return false;
   var tmpl = MFG_JOBS[tmplKey];
   var secs = mfgProgramSeconds(tmpl, prep.plan);
   prep.stage = 'programming';
@@ -1599,6 +1625,17 @@ function mfgLBracketViseFailure(tmpl, plan){
   if(!firstSetup || (firstSetup.workholdingId!=='standardJaws' && firstSetup.workholdingId!=='parallels')) return null;
   return 'The wide stock plate bowed when the vise jaws were tightened. It is no longer flat enough to machine and the material cost was lost.';
 }
+function mfgWorkholdingFailure(tmpl, plan){
+  var bracketRisk=mfgLBracketViseFailure(tmpl,plan);
+  if(bracketRisk) return bracketRisk;
+  if(tmpl && (tmpl.id==='mfg_nameplate' || tmpl.id==='mfg_bottleOpener')){
+    var setup=plan && plan.setups && plan.setups[0];
+    if(setup && setup.workholdingId==='parallels') return tmpl.id==='mfg_nameplate' ?
+      'The thin nameplate bowed on the vise. The cutter caught the lifted plate, the machine crashed, and no sign was completed.' :
+      'The thin bottle-opener sheet bowed in the vise. The cutter caught the lifted sheet, the machine crashed, and no opener was completed.';
+  }
+  return null;
+}
 function mfgRunInspectionDims(tmpl, qualityScore){
   var devScale = (100-qualityScore)/100;
   return tmpl.inspectionDims.map(function(d){
@@ -1645,7 +1682,7 @@ function mfgMaxBatch(confidenceKey){
 /* ---- Machine slot: setup / first article / inspect / correct / approve / production / ship ---- */
 function mfgFreshClampSetup(){
   /* Cross-pattern tightening: top-left, bottom-right, top-right, bottom-left. */
-  return { sequence:[0,3,1,2], progress:[], error:null };
+  return { sequence:[0,3,1,2], progress:[], error:null, viseTightened:false };
 }
 function mfgClampSetupState(ap){
   if(!ap.clampSetup || !Array.isArray(ap.clampSetup.sequence)){
@@ -1674,6 +1711,13 @@ function mfgTightenClampBolt(tmplKey, boltIdx){
   cs.error='Uneven tightening can lift the plate. Start the cross pattern again.';
   scheduleAutosave();
   return { ok:false, reset:true };
+}
+function mfgTightenVise(tmplKey){
+  var ap=state.mfgActive;
+  if(!ap || ap.tmplKey!==tmplKey || ap.stage!=='setup') return false;
+  mfgClampSetupState(ap).viseTightened=true;
+  scheduleAutosave();
+  return true;
 }
 function mfgParkActiveJob(){
   var ap=state.mfgActive;
@@ -1707,8 +1751,8 @@ function mfgSetupOnMachine(tmplKey){
     firstArticleCount: 0, requiredFirstArticles: tmpl.difficulty >= 3 ? 2 : 1,
     confidenceScore: 15, confidence: 'untested',
     elapsedSim: 0, totalSim: 0, paused: false, stopReason: null,
-    goodCount: 0, scrapCount: 0, qtyTarget: tmpl.qty,
-    blanksInStock: tmpl.qty + 3,
+    goodCount: 0, scrapCount: 0, qtyTarget: tmplKey==='nameplate' ? 1 : tmpl.qty,
+    blanksInStock: (tmplKey==='nameplate' ? 1 : tmpl.qty) + 3,
     batchSize: 0, batchRemaining: 0,
     lastInspection: null, correctionLog: [], _correctionBoost: 0,
     economics: { materialCost:0, setupCost:0, scrapCost:0 },
@@ -1725,18 +1769,27 @@ function mfgConfirmSetupRunFirstArticle(){
   var ap = state.mfgActive;
   if(!ap || ap.stage !== 'setup') return false;
   var tmpl = MFG_JOBS[ap.tmplKey];
-  var viseFailure=mfgLBracketViseFailure(tmpl,ap.plan);
+  var viseFailure=mfgWorkholdingFailure(tmpl,ap.plan);
   if(!viseFailure && !mfgClampSetupComplete(ap)) return false;
   if(viseFailure){
     ap.scrapCount++;
     ap.blanksInStock=Math.max(0,ap.blanksInStock-1);
-    ap.economics.scrapCost=(ap.economics.scrapCost||0)+Math.round(tmpl.materialCostBase);
+    var lostMaterial=Math.round(tmpl.materialCostBase*mfgStockOption(tmpl,ap.plan.stockId).costMult);
+    ap.economics.scrapCost=(ap.economics.scrapCost||0)+lostMaterial;
+    ap.economics.scrapPaid=(ap.economics.scrapPaid||0)+lostMaterial;
+    state.cash=Math.max(0,state.cash-lostMaterial);
     ap._stockAlreadyScrapped=true;
     ap.lastInspection={ dims:[], issues:[viseFailure], pass:false, quality:0, bentStock:true };
-    ap.stage='inspecting';
+    if(tmpl.id==='mfg_nameplate' || tmpl.id==='mfg_bottleOpener'){
+      ap.stage='firstArticle'; ap.paused=true; ap.stopReason='crash';
+      ap.lastInspection={ dims:[], issues:[viseFailure], pass:false, crashed:true, bowedPlate:true };
+      toast('CRASH — the bowed thin sheet lifted from the vise. Lost '+fmtMoney(lostMaterial)+' in material.', 'bad');
+    } else {
+      ap.stage='inspecting';
+    }
     ap.confidenceScore=clamp(ap.confidenceScore-25,0,100);
     ap.confidence=mfgConfidenceFromScore(ap.confidenceScore);
-    toast('Plate bent — material scrapped.', 'bad');
+    if(tmpl.id!=='mfg_nameplate' && tmpl.id!=='mfg_bottleOpener') toast('Plate bent — material scrapped. Lost '+fmtMoney(lostMaterial)+'.', 'bad');
     scheduleAutosave();
     return true;
   }
@@ -1942,6 +1995,7 @@ function mfgStartBatch(sizeChoice, partsPerCycle){
   var ap = state.mfgActive; if(!ap || (ap.stage !== 'approved' && ap.stage !== 'production')) return false;
   var tmpl = MFG_JOBS[ap.tmplKey];
   var remainingQty = Math.max(0, ap.qtyTarget - ap.goodCount);
+  if(ap.tmplKey === 'nameplate'){ sizeChoice = 1; partsPerCycle = 1; }
   var n = sizeChoice === 'remaining' ? remainingQty : Math.min(sizeChoice, remainingQty);
   partsPerCycle = partsPerCycle===2 && ap.tmplKey==='nameplate' ? 2 : 1;
   if(partsPerCycle===2) n=Math.min(2,remainingQty);
@@ -1964,7 +2018,7 @@ function mfgShipJob(){
   var frac = ap.qtyTarget > 0 ? clamp(ap.goodCount/ap.qtyTarget, 0, 1) : 0;
   var revenue = Math.round(tmpl.basePayment*frac);
   var stockMult = mfgStockOption(tmpl, ap.plan.stockId).costMult;
-  var matCost = Math.round(tmpl.materialCostBase*stockMult*(ap.goodCount+ap.scrapCount));
+  var matCost = Math.max(0,Math.round(tmpl.materialCostBase*stockMult*(ap.goodCount+ap.scrapCount))-(ap.economics.scrapPaid||0));
   var setupCost = Math.round(ap.economics.setupCost||0);
   var profit = revenue - matCost - setupCost;
   state.cash += profit;
@@ -2089,6 +2143,9 @@ function renderBlueprintJobs(){
   if(!host) return;
   var lanes = { incoming:[], inprocess:[], outgoing:[] };
   state.mfgBoard.forEach(function(key){
+    // The L Bracket is the one outside-order opportunity. It lives on the
+    // workshop laptop until its bid is accepted, not on the storefront board.
+    if(key === 'lBracket') return;
     var tmpl = MFG_JOBS[key];
     var stageKey = mfgCurrentStageKey(key);
     var onMachine = state.mfgActive && state.mfgActive.tmplKey === key;
@@ -2126,6 +2183,33 @@ function renderBlueprintJobs(){
   // background job ticking (which triggers render() every frame) doesn't
   // rebuild these cards mid-click and break the buttons.
   if(host.__lastHtml !== html){ host.__lastHtml = html; host.innerHTML = html; }
+}
+
+function marketplaceLBracketHtml(){
+  var host = document.getElementById('marketplace-laptop');
+  if(!host) return;
+  var tmpl = MFG_JOBS.lBracket;
+  var accepted = !!state.marketLBracketAccepted;
+  var stage = mfgCurrentStageKey('lBracket');
+  var working = state.mfgPrep.lBracket || mfgRuntimeJob('lBracket');
+  var html = '<h3>SHOPNET // MATCHED WORK</h3>' +
+    '<p>One outside order waiting for your quote.</p>' +
+    '<div class="marketplace-order"><strong>L Bracket</strong>' +
+    '<p>Northline Fixtures &middot; Qty '+tmpl.qty+'</p>' +
+    '<p><span class="market-price">'+fmtMoney(tmpl.basePayment)+'</span> target payout &middot; Aluminum</p>' +
+    (accepted ? '<p>Bid accepted &mdash; '+mfgStageStatusLabel(stage)+'.</p><button type="button" data-action="open-mfg-job" data-key="lBracket">'+(working ? 'Open L-Bracket Job' : 'Review L-Bracket Job')+'</button>' :
+      '<button type="button" data-action="open-market-bid">Review &amp; Submit Bid</button>') +
+    '</div>';
+  if(host.__lastHtml !== html){ host.__lastHtml = html; host.innerHTML = html; }
+}
+
+function marketplaceBidModalHtml(){
+  var tmpl = MFG_JOBS.lBracket;
+  return '<div class="modal-header"><h2>Outside Order: L Bracket</h2><button class="close-x" data-action="close-modal" aria-label="Close">&times;</button></div>' +
+    '<p class="muted">Northline Fixtures needs '+tmpl.qty+' aluminum L brackets. This is the only matched outside order currently available.</p>' +
+    '<div class="stat-grid"><div class="stat-box"><div class="v">'+fmtMoney(tmpl.basePayment)+'</div><div class="l">Target payout</div></div><div class="stat-box"><div class="v">'+tmpl.qty+'</div><div class="l">Parts</div></div><div class="stat-box"><div class="v">Aluminum</div><div class="l">Material</div></div></div>' +
+    '<label for="market-bid-price">Your bid</label><input id="market-bid-price" type="number" min="1" step="5" value="'+tmpl.basePayment+'">' +
+    '<button type="button" class="primary" style="width:100%;margin-top:.8em;" data-action="accept-market-bid">Submit &amp; Accept Bid</button>';
 }
 function mfgStageStatusLabel(stageKey){
   return { blueprint:'Reviewing Blueprint', plan:'Planning', programming:'Programming', readyForSetup:'Ready for Setup',
@@ -3016,7 +3100,7 @@ function mfgPlanTabHtml(tmpl, key){
 
   var setupsHtml = tmpl.setupDefs.map(function(sd, idx){
     var s = plan.setups[idx];
-    var options = Object.keys(WORKHOLDING).filter(function(wk){
+    var options = ['parallels','tabs'].filter(function(wk){
       var wh = WORKHOLDING[wk];
       return !wh.unlockedBy || state.upgrades[wh.unlockedBy];
     }).map(function(wk){
@@ -3109,8 +3193,10 @@ function mfgProgrammingTabHtml(tmpl, key){
   var actionHtml = '';
   if(editable){
     var progSec = mfgProgramSeconds(tmpl, plan);
-    actionHtml = '<p class="muted">Estimated programming time: ' + fmtTime(progSec) + (state.upgrades.camSoftware?' (CAM software applied)':'') + '</p>' +
-      '<button type="button" class="primary" style="width:100%; margin-top:.4em;" data-action="mfg-begin-programming" data-key="' + key + '">Generate Program</button>';
+    var nameLoadHtml = key==='nameplate' ? '<div class="card" style="margin-top:.7em;"><h4 style="margin:0 0 .3em;">Engraving label</h4><p class="muted">This one-off sign is for <b>'+mfgEscapeXml(assignedName)+'</b>. Load this name before generating the program.</p>' +
+      (prep.nameProgrammed ? '<p class="pill good">'+mfgEscapeXml(assignedName)+' loaded for engraving.</p>' : '<button type="button" data-action="mfg-load-name" data-key="'+key+'">Load “'+mfgEscapeXml(assignedName)+'”</button>') + '</div>' : '';
+    actionHtml = nameLoadHtml + '<p class="muted">Estimated programming time: ' + fmtTime(progSec) + (state.upgrades.camSoftware?' (CAM software applied)':'') + '</p>' +
+      '<button type="button" class="primary" style="width:100%; margin-top:.4em;" data-action="mfg-begin-programming" data-key="' + key + '" '+(key==='nameplate'&&!prep.nameProgrammed?'disabled':'')+'>Generate Program</button>';
   } else if(isProgramming){
     var pct = 100 - Math.round(100*prep.programTimeRemaining/Math.max(1,prep.programTotalSeconds));
     actionHtml = '<p>Programming in progress&hellip; (<span id="mfg-prog-remaining">' + fmtTime(prep.programTimeRemaining) + '</span> remaining)</p>' +
@@ -3167,8 +3253,8 @@ function mfgClampSetupHtml(tmpl, key, ap){
   var feedback=complete ?
     '<p class="pill good">All four clamps are tight and the plate is ready to machine.</p>' :
     '<p class="pill '+(cs.error?'bad':'warn')+'">'+(cs.error||('Next: tighten bolt '+(cs.progress.length+1)+' of 4.'))+'</p>';
-  return '<h4 class="section-title">Clamp the plate</h4>' +
-    '<p class="muted">Tap the four clamp bolts in the numbered diagonal sequence. Alternating corners seats the plate evenly.</p>' +
+  return '<h4 class="section-title">'+(tmpl.id==='mfg_nameplate'?'Set the four toe clamps':'Clamp the plate')+'</h4>' +
+    '<p class="muted">Tap the four '+(tmpl.id==='mfg_nameplate'?'toe-clamp fasteners':'clamp bolts')+' in the numbered diagonal sequence. Alternating corners seats the plate evenly.</p>' +
     svg+feedback;
 }
 function mfgSetupTabHtml(tmpl, key){
@@ -3178,10 +3264,12 @@ function mfgSetupTabHtml(tmpl, key){
     var s = ap.plan.setups[idx];
     return '<li>Setup ' + sd.n + ': ' + WORKHOLDING[s.workholdingId].label + '</li>';
   }).join('');
-  var viseRisk=mfgLBracketViseFailure(tmpl,ap.plan);
-  var clampsReady=viseRisk ? true : mfgClampSetupComplete(ap);
-  var setupInteraction=viseRisk ?
-    '<div class="minigame-result"><span class="pill bad">Unsafe workholding: the vise will bow this wide plate. Running it will scrap one blank and charge its material cost.</span></div>' :
+  var viseRisk=mfgWorkholdingFailure(tmpl,ap.plan);
+  var isThinSheetVise=(tmpl.id==='mfg_nameplate' || tmpl.id==='mfg_bottleOpener') && viseRisk;
+  var clampsReady=viseRisk ? (isThinSheetVise ? !!mfgClampSetupState(ap).viseTightened : true) : mfgClampSetupComplete(ap);
+  var setupInteraction=viseRisk ? (isThinSheetVise ?
+    '<div class="card" style="text-align:center;"><h4 style="margin:.1em 0 .4em;">Vise</h4><p class="muted">Turn the vise handle to tighten this selected setup.</p><button type="button" aria-label="Turn vise handle" data-action="mfg-tighten-vise" data-key="'+key+'" style="width:82px;height:82px;border-radius:50%;font-size:1.7rem;transform:rotate('+(mfgClampSetupState(ap).viseTightened?90:0)+'deg);">✣</button><p class="pill bad">This thin '+(tmpl.id==='mfg_nameplate'?'sign':'sheet')+' will bow in the vise. Running it will crash the machine and make no completed part.</p></div>' :
+    '<div class="minigame-result"><span class="pill bad">Unsafe workholding: the vise will bow this wide plate. Running it will scrap one blank and charge its material cost.</span></div>') :
     mfgClampSetupHtml(tmpl,key,ap);
   return '<p>Stock: ' + mfgStockOption(tmpl, ap.plan.stockId).label + '</p>' +
     '<ul>' + setupsHtml + '</ul>' +
@@ -3197,6 +3285,9 @@ function mfgSpeedRowHtml(){
       return '<button type="button" data-action="set-speed" data-speed="' + s + '" aria-pressed="' + (state.speed===s) + '">' + s + 'x</button>';
     }).join('') + '</div>';
 }
+function viseFailureAnimHtml(tmpl){
+  return '<div class="mill-mini" style="margin:.6em auto;" aria-label="Bowed sheet failure animation"><div class="vise-failure-scene"><div class="vise-failure-sheet"></div><div class="vise-failure-label">SHEET BOWED — CRASH</div></div></div>';
+}
 
 function mfgFirstArticleTabHtml(tmpl, key){
   var ap = state.mfgActive;
@@ -3205,6 +3296,9 @@ function mfgFirstArticleTabHtml(tmpl, key){
   if(ap.stage === 'correcting'){
     return '<p class="pill warn">Correction applied. Ready to re-run.</p>' +
       '<button type="button" class="primary" style="width:100%;" data-action="mfg-rerun" data-key="' + key + '">Re-run First Article</button>';
+  }
+  if(ap.paused && ap.stopReason==='crash' && ap.lastInspection && ap.lastInspection.bowedPlate){
+    return viseFailureAnimHtml(tmpl) + '<p class="pill bad">'+mfgEscapeXml((ap.lastInspection.issues||[])[0]||'The sheet bowed in the vise.')+'</p>';
   }
   return mfgSpeedRowHtml() +
     '<div class="mill-mini job-mill-view" id="mfg-mill" style="margin:.6em auto;" aria-hidden="true">' +
@@ -3275,7 +3369,7 @@ function mfgProductionTabHtml(tmpl, key){
       (mfgMachineBusy() ? 'Machine Busy — '+busyPart : 'Load This Job on Machine') + '</button>';
   } else if(ap.stage === 'production' && !ap.paused){
     var frac = clamp(ap.elapsedSim/Math.max(1,ap.totalSim),0,1);
-    var runLabel=(ap.partsPerCycle||1)===2 ? 'Running two nested nameplates in one cycle' : 'Running batch';
+    var runLabel=key==='nameplate' ? 'Machining one custom sign for '+(ap.customerName||'this customer') : 'Running batch';
     runningHtml = mfgSpeedRowHtml() +
       '<div class="mill-mini job-mill-view" id="mfg-mill" style="margin:.6em auto;" aria-hidden="true">' +
         jobMachineAnimHtml(!ap.paused, !!state.upgrades.mistCoolant, key, frac) +
@@ -3296,13 +3390,15 @@ function mfgProductionTabHtml(tmpl, key){
 
   var batchHtml = '';
   if(isActive && remainingQty > 0 && (ap.stage === 'approved' || (ap.stage === 'production' && ap.paused))){
+    if(key==='nameplate'){
+      batchHtml = '<h4 class="section-title">Run This Sign</h4><p class="muted" style="font-size:.82rem;">One custom sign per customer order. The next order receives a new name.</p><button type="button" data-action="mfg-run-batch" data-key="'+key+'" data-size="1">Machine '+mfgEscapeXml(ap.customerName||'Custom Sign')+'</button>';
+    } else {
     batchHtml = '<h4 class="section-title">Run a Batch</h4><p class="muted" style="font-size:.82rem;">Max unattended batch at ' + confLabel + ' confidence: ' + (maxBatch>999?'no limit':maxBatch) + '.</p>' +
       '<div class="row">' + [1,2,5,10].filter(function(n){return n<=remainingQty;}).map(function(n){
         return '<button type="button" data-action="mfg-run-batch" data-key="' + key + '" data-size="' + n + '" ' + (n>maxBatch?'disabled':'') + '>Run ' + n + '</button>';
       }).join('') + '<button type="button" data-action="mfg-run-batch" data-key="' + key + '" data-size="remaining" ' + (remainingQty>maxBatch?'disabled':'') + '>Run Remaining (' + remainingQty + ')</button></div>' +
-      (key==='nameplate' && remainingQty>=2 ?
-        '<button type="button" style="width:100%; margin-top:.5em; border-color:#47b8ff;" data-action="mfg-run-nested" data-key="'+key+'" '+(maxBatch<2?'disabled':'')+'>Run 2 Nested — One Shared Cycle</button>' +
-        '<p class="muted" style="font-size:.78rem;">Two nameplates share one larger setup, taking about 45% longer than a single cycle instead of twice as long.</p>' : '');
+      '';
+    }
   }
 
   var shipHtml = '';
@@ -4170,6 +4266,7 @@ function render(){
   renderUpgrades();
   renderRecords();
   renderBlueprintJobs();
+  marketplaceLBracketHtml();
   if(openMfgTmplKey && document.getElementById('mfg-modal-body')) renderMfgModalContent();
 
   var gm = document.getElementById('settings-mode-guided');
@@ -5595,6 +5692,18 @@ document.addEventListener('click', function(e){
     case 'open-mfg-job':
       openMfgModal(el.getAttribute('data-key'));
       break;
+    case 'open-market-bid':
+      openModal(marketplaceBidModalHtml());
+      break;
+    case 'accept-market-bid':
+      withLock(function(){
+        state.marketLBracketAccepted = true;
+        scheduleAutosave();
+        closeModal();
+        render();
+        toast('Bid accepted. The L-bracket order is ready to review.', 'good');
+      });
+      break;
     case 'mfg-tab': {
       var wantTab = el.getAttribute('data-tab');
       var idxWanted = MFG_TABS.findIndex(function(t){ return t.key === wantTab; });
@@ -5731,6 +5840,17 @@ document.addEventListener('click', function(e){
         if(mfgBeginProgramming(pk)){ renderMfgModalContent(); toast('Programming started.', 'good'); }
       });
       break;
+    case 'mfg-load-name':
+      withLock(function(){
+        var nk=el.getAttribute('data-key'), np=state.mfgPrep[nk];
+        if(np && nk==='nameplate' && np.stage==='plan'){
+          np.nameProgrammed=true;
+          scheduleAutosave();
+          renderMfgModalContent();
+          toast('Name loaded for engraving.', 'good');
+        }
+      });
+      break;
     case 'mfg-setup-machine':
       withLock(function(){
         var sk = el.getAttribute('data-key');
@@ -5774,6 +5894,11 @@ document.addEventListener('click', function(e){
         renderMfgModalContent();
         if(clampResult.complete) toast('All four clamps are tight.', 'good');
         else if(clampResult.reset) toast('Use the numbered cross pattern.', 'bad');
+      });
+      break;
+    case 'mfg-tighten-vise':
+      withLock(function(){
+        if(mfgTightenVise(el.getAttribute('data-key'))){ renderMfgModalContent(); toast('Vise tightened.', 'warn'); }
       });
       break;
     case 'mfg-run-first-article':
